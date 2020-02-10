@@ -1,0 +1,12 @@
+*.pyc
+__pycache__
+*.log
+data/*
+!data/.gitkeep
+runs
+wandb
+*.swp
+*.pth
+*.sync-conflict*
+slurm-*.out
+scratch/

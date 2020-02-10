@@ -1,0 +1,15 @@
+# these packages are meant to be updated every now and then
+# and their updated version represented in requirements.txt
+# while maintaining a list of the packages that were actually
+# manually installed. This list must be maintained manually!
+# You may update requirements.txt with
+# pip freeze | grep -f manually-installed-packages.txt | sort > requirements.txt
+torch
+torchvision
+numpy
+matplotlib
+pandas
+sklearn
+numpydoc
+wandb
+tabulate
