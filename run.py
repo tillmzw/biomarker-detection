@@ -12,7 +12,7 @@ import wandb
 from torch.utils.data import DataLoader
 import tabulate
 
-import model
+from unet import model
 from dataset import IDRIDDataset
 import training
 import utils
@@ -38,8 +38,6 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", default=False)
     parser.add_argument("-t", "--train", action="store_true", default=False, help="Run training phase")
     parser.add_argument("-m", "--model", default=model.list_models()[0], choices=model.list_models())
-    parser.add_argument("-u", "--untrained", action="store_true", default=False, help="Don't use a pretrained network, i.e. start training from an uninitialized state.")
-    parser.add_argument("-T", "--transfer", action="store_true", default=False, help="Employ transfer learning, i.e. relearn just the last layer.")
     parser.add_argument("-D", "--device", choices=("cpu", "cuda", "auto"), default="auto", help="Run on this device")
     parser.add_argument("-V", "--validate", action="store_true", default=False, help="Run validation tests")
     parser.add_argument("-L", "--validation-limit", type=float, default=None, help="During validation, limit validation set to this number of samples; can be an integer (number of samples) or a float (fraction of samples). Requires --validation")
@@ -89,14 +87,14 @@ if __name__ == "__main__":
 
     if not hasattr(model, args.model):
         raise parser.error("Model \"%s\" is unknown; available options: %s" % (args.model, ", ".join(model.__all__)))
-    net = getattr(model, args.model)(pretrained=(not args.untrained), transfer=args.transfer)
+    net = getattr(model, args.model)()
 
     net.to(torch.device(args.device))
     data_dir = args.data_dir
 
     if args.validate:
         # TODO: Testset
-        testset = IDRIDDataset(os.path.join(data_dir, "test"), limit=args.validation_limit)
+        testset = IDRIDDataset("test", path=data_dir, limit=args.validation_limit)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
         testloader = None
@@ -104,7 +102,7 @@ if __name__ == "__main__":
     if args.train:
         logger.info("Starting training")
 
-        trainset = IDRIDDataset(os.path.join(data_dir, "train"), limit=args.limit)
+        trainset = IDRIDDataset("train", path=data_dir, limit=args.limit)
 
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 

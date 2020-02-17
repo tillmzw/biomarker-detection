@@ -32,7 +32,7 @@ class IDRIDDataset(Dataset):
                 # limit is a percentage
                 n = math.floor(len(self._images) * limit)
             else:
-                n = limit
+                n = int(limit)
             logger.info(f"Limiting number of images to {n} (based on limit = {limit})")
             self._images = random.sample(self._images, n)
 

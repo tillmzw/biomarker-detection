@@ -28,7 +28,8 @@ class Trainer():
         raise NotImplementedError
 
     def get_loss_function(self, weights=None):
-        return nn.NLLLoss(weight=weights)
+        #return nn.NLLLoss(weight=weights)
+        return nn.CrossEntropyLoss()
 
     def train(self, model, dataloader, state_file=None, validation_dataloader=None):
         """
@@ -46,10 +47,10 @@ class Trainer():
                 logger.info("Applying weights: %s" % ", ".join(
                     ("%d: %.2f" % (i, w) for i, w in enumerate(weights))
                 ))
+            weights = weights.to(model_device)
         else:
-            logger.warning("No class weight calculation supported by data loader %s" % dataloader.__class__)
+            logger.warning("No class weight calculation supported by data loader %s" % dataloader.dataset.__class__)
             weights = None
-        weights = weights.to(model_device)
         loss_func = self.get_loss_function(weights=weights)
         optimizer = self.get_optimizer(model)
 
@@ -72,17 +73,17 @@ class Trainer():
             training_start = time.time()
             for i, data in enumerate(dataloader):
                 # get the inputs; data is a list of [inputs, filenames, labels]
-                inputs, names, labels = data
+                names, images, masks = data
 
-                inputs = inputs.to(model_device)
-                labels = labels.to(model_device)
+                images = images.to(model_device)
+                masks = masks.to(model_device)
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                outputs = model(inputs)
+                outputs = model(images)
                 # make sure the labels are on the same device as the data
-                loss = loss_func(outputs, labels)
+                loss = loss_func(outputs, masks)
                 loss.backward()
                 optimizer.step()
 
