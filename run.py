@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import tabulate
 
 import model
-from dataset import RetinopathyDataset
+from dataset import IDRIDDataset
 import training
 import utils
 from validator import validate
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                         handlers=handlers)
 
     # initialize early so that the wandb logging handlers are attached
-    wandb_cfg = {"project": "diabetic_retinopathy_detection"}
+    wandb_cfg = {"project": "biomarker_detection"}
     if args.no_wandb:
         os.environ["WANDB_MODE"] = "dryrun"
     wandb.init(**wandb_cfg)
@@ -95,9 +95,8 @@ if __name__ == "__main__":
     data_dir = args.data_dir
 
     if args.validate:
-        testset = RetinopathyDataset(os.path.join(data_dir, "testLabels.csv"),
-                                     os.path.join(data_dir, "test"),
-                                     limit=args.validation_limit)
+        # TODO: Testset
+        testset = IDRIDDataset(os.path.join(data_dir, "test"), limit=args.validation_limit)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
         testloader = None
@@ -105,9 +104,7 @@ if __name__ == "__main__":
     if args.train:
         logger.info("Starting training")
 
-        trainset = RetinopathyDataset(os.path.join(data_dir, "trainLabels.csv"),
-                                      os.path.join(data_dir, "train"),
-                                      limit=args.limit)
+        trainset = IDRIDDataset(os.path.join(data_dir, "train"), limit=args.limit)
 
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 
