@@ -105,21 +105,37 @@ class IDRIDDataset(Dataset):
             # handle empty masks below
             if mask_path:
                 img = Image.open(mask_path)
+                if img.getbands() != ("P", ):
+                    logger.warning(f"Processing mask with non-binary bands: {mask_path} has bands {img.getbands()}")
+                    img = img.convert("P")
                 img = self.normalize_transform(img)
-            imgs[i] = img
+                img = img.squeeze()
+                img[img > 0] = 1
+                imgs[i] = img
+                logger.debug(f"Found mask for class {self.CLASSES[i]} (dims: {img.size()}): {os.path.basename(mask_path)}")
+            else:
+                logger.debug(f"No mask found for class {self.CLASSES[i]}")
 
         # determine the size of the masks by any mask in the stack
-        # [0] = all widths, [1] = all heights
         size_stack = torch.stack([torch.tensor(i.size()) for i in imgs if i is not None], dim=1)
-        masksize = torch.max(size_stack[0], dim=0), torch.max(size_stack[1], dim=0)
+        masksize = tuple(torch.min(size_stack, dim=1).values)
         for i, img in enumerate(imgs):
             # fill in only empty masks
             if img is not None:
+                assert mask_paths[i] is not None, f"Inconsistent mask parsing" 
                 continue
             imgs[i] = torch.zeros(size=masksize)
 
+        for i, img in enumerate(imgs):
+            pixels = torch.sum(img[img > 0])
+            logger.debug("{s}, pixels = {pixels}, {p}".format(s=img.shape, pixels=pixels, p=mask_paths[i]))
+
+        # reshaping masks into format:
+        # [samples, classes, width, height]
         # one "layer", i.e. mask per class
         masks = torch.stack(imgs, dim=-1)
+        masks = masks.squeeze(0)  # remove empty first dimension
+        masks = masks.permute(2, 0, 1)  # move mask dimension to front for compat with pytorch
         return masks
 
     def normalize_transform(self, image):
@@ -171,9 +187,8 @@ if __name__ == "__main__":
     axes[0].imshow(di)
 
     for i, cls in enumerate(ds.CLASSES):
-        mask = dm[:, :, :, i]
-        mask = mask.permute(1, 2, 0)
-        mask = mask.squeeze()  # remove empty third dimension
+        print(dm.shape)
+        mask = dm[i, :, :]
         axes[i + 1].imshow(di, alpha=1.0)
         axes[i + 1].imshow(mask, alpha=0.5, cmap=cm.binary)
         axes[i + 1].set_title(cls)

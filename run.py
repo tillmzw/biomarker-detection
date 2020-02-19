@@ -21,6 +21,7 @@ from validator import validate
 
 logger = logging.getLogger(__name__)
 CPU_COUNT = min(4, multiprocessing.cpu_count())
+CPU_COUNT = 0
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
@@ -119,22 +120,22 @@ if __name__ == "__main__":
     if args.validate:
         # mismatch record file
         mmr = os.path.join(args.scratch, "mismatches.csv") if (args.scratch and args.mismatches) else None
-        acc, kappa, confusion = validate(net, testloader, record_file=mmr)
-        # log the confusion matrix
-        logger.info("Final validation run: %05.2f%% accuracy, kappa = % 04.2f" % (acc, kappa))
-        logger.info("Confusion matrix:")
+        entropy = validate(net, testloader, record_file=mmr)
+        logger.info(f"Final validation run: {entropy:.2f} entropy")
+        # TODO: implement validation metrics
+        #logger.info("Confusion matrix:")
 
-        confusion_norm = utils.norm_mat(confusion, norm="rows")
-        # because we plot the indices, the first header item should be empty for clarity
-        headers = (" ",) + tuple(range(confusion.shape[0] + 1))
-        table = tabulate.tabulate(confusion_norm, headers, showindex="always", tablefmt="fancy_grid")
-        for line in table.split("\n"):
-            logger.info(line)
+        #confusion_norm = utils.norm_mat(confusion, norm="rows")
+        ## because we plot the indices, the first header item should be empty for clarity
+        #headers = (" ",) + tuple(range(confusion.shape[0] + 1))
+        #table = tabulate.tabulate(confusion_norm, headers, showindex="always", tablefmt="fancy_grid")
+        #for line in table.split("\n"):
+        #    logger.info(line)
 
-        # create a plot from the confusion matrix
-        logger.info("Creating confusion matrix plot")
-        plot = utils.plot_confusion_matrix(confusion)
-        implot = utils.plot_to_pil(plot)
-        if args.scratch:
-            utils.save_pil_to_scratch(implot, target_dir=args.scratch, name="final_confusion.png", overwrite=True)
-        wandb.log({"confusion_matrix": wandb.Image(implot)})
+        ## create a plot from the confusion matrix
+        #logger.info("Creating confusion matrix plot")
+        #plot = utils.plot_confusion_matrix(confusion)
+        #implot = utils.plot_to_pil(plot)
+        #if args.scratch:
+        #    utils.save_pil_to_scratch(implot, target_dir=args.scratch, name="final_confusion.png", overwrite=True)
+        #wandb.log({"confusion_matrix": wandb.Image(implot)})
