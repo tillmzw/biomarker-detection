@@ -49,7 +49,7 @@ echo -e "======================================================"
 		--dir $BASEDIR \
 		--data-dir $TMPDIR/data \
 		--state $WORKDIR/model.pth \
-		--batch 64 \
+		--batch 4 \
 		--epochs 100 \
 		--validation-limit 0.25 \
 		--train \
