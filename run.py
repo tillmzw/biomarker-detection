@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import tabulate
 
 from unet import model
-from dataset import IDRIDDataset
+from dataset import IDRIDDataset, PatchIDRIDDataset
 import training
 import utils
 from validator import validate
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
     if args.validate:
         # TODO: Testset
-        testset = IDRIDDataset("test", path=data_dir, limit=args.validation_limit)
+        testset = PatchIDRIDDataset("test", path=data_dir, limit=args.validation_limit)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
         testloader = None
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     if args.train:
         logger.info("Starting training")
 
-        trainset = IDRIDDataset("train", path=data_dir, limit=args.limit)
+        trainset = PatchIDRIDDataset("train", path=data_dir, limit=args.limit)
 
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 
