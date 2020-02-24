@@ -171,6 +171,7 @@ class PatchIDRIDDataset(IDRIDDataset):
     def __init__(self, *args, patch_size=256, **kwargs):
         super().__init__(*args, **kwargs)
         self._patch_size = patch_size
+        # FIXME: limiting does not consider patches, but only images
 
     @property
     def _image_dims(self):
