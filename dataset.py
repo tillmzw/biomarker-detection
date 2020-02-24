@@ -85,8 +85,8 @@ class IDRIDDataset(Dataset):
     def __getitem__(self, idx):
         img_path, mask_paths = self._images[idx]
         img_name, _ = os.path.splitext(os.path.basename(img_path))
-        img = self._load_image(img_path)
-        mask = self._load_masks(mask_paths)
+        img = self._load_image(img_path).to(device=self._device)
+        mask = self._load_masks(mask_paths).to(device=self._device)
         return img_name, img, mask
 
     def __len__(self):
@@ -144,8 +144,7 @@ class IDRIDDataset(Dataset):
             transforms.Resize(256),
             transforms.ToTensor(),
         ))
-        image = t(image).to(self._device)
-        return image
+        return t(image)
 
     def transform(self, image):
         # see https://pytorch.org/hub/pytorch_vision_wide_resnet/
@@ -156,7 +155,6 @@ class IDRIDDataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-        image = transform(image).to(self._device)
         return image
 
 
