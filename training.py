@@ -30,6 +30,9 @@ class Trainer():
     def get_loss_function(self, weights=None):
         return nn.BCEWithLogitsLoss(weight=weights)
 
+    def get_lr_scheduler(self, optimizer):
+        return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=1, verbose=True)
+
     def train(self, model, dataloader, state_file=None, validation_dataloader=None):
         """
         Apply this classes optimizer and loss function to `model` and `dataloader`.
@@ -52,6 +55,7 @@ class Trainer():
             weights = None
         loss_func = self.get_loss_function(weights=weights)
         optimizer = self.get_optimizer(model)
+        lr_sched = self.get_lr_scheduler(optimizer)
 
         wandb.config.update({
             "host": utils.hostname(),
@@ -104,6 +108,8 @@ class Trainer():
                 validation_start = time.time()
                 try:
                     entropy = validator.validate(model, validation_dataloader)
+                    # adapt the learning rate
+                    lr_sched.step(entropy)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
