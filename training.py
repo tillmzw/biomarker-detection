@@ -5,6 +5,7 @@ import datetime
 import time
 import tempfile
 import os
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -30,6 +31,16 @@ class Trainer():
     def get_loss_function(self, weights=None):
         return nn.BCEWithLogitsLoss(weight=weights)
 
+    def get_lr_scheduler(self, optimizer):
+        return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=1, verbose=True)
+
+    def get_lr(self, optimizer):
+        # borrowed from torch.optim.lr_scheduler
+        lrs = [float(group['lr']) for group in optimizer.param_groups]
+        if len(lrs) > 1:
+            logger.debug("Averaging learning rates - have {len(lrs)} entries")
+        return np.mean(lrs)
+
     def train(self, model, dataloader, state_file=None, validation_dataloader=None):
         """
         Apply this classes optimizer and loss function to `model` and `dataloader`.
@@ -52,6 +63,9 @@ class Trainer():
             weights = None
         loss_func = self.get_loss_function(weights=weights)
         optimizer = self.get_optimizer(model)
+        lr_sched = self.get_lr_scheduler(optimizer)
+
+        self.get_lr(optimizer)
 
         wandb.config.update({
             "host": utils.hostname(),
@@ -104,12 +118,14 @@ class Trainer():
                 validation_start = time.time()
                 try:
                     entropy = validator.validate(model, validation_dataloader)
+                    # adapt the learning rate
+                    lr_sched.step(entropy)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
                 else:
                     # TODO: fix logging to wandb
-                    wandb.log({"validation_loss": entropy}, step=step)
+                    wandb.log({"validation_loss": entropy, "lr": self.get_lr(optimizer)}, step=step)
                     #logger.info("Validation during training at step %d: %05.2f%%, kappa = % 04.2f" % (step, validation_acc, validation_kappa))
                     vt = time.time() - validation_start
                     vtt = vt // 60 + ((vt % 60) / 60)
