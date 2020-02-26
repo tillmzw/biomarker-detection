@@ -238,7 +238,8 @@ class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
         img_name, img, masks = super().__getitem__(idx)
         # TODO: There is certainly a faster way to do this that is still readable
         sum_masks = [torch.sum(mask[mask > 0]) for mask in masks]
-        boolean_mask = [mask > self._presence_threshold for mask in sum_masks]
+        # without using ().value, this would be a list of 1-element 1-d tensors
+        boolean_mask = [(mask > self._presence_threshold).item() for mask in sum_masks]
         binary_mask = [{False: 0, True: 1}[m] for m in boolean_mask]
         return img_name, img, torch.tensor(binary_mask)
 
