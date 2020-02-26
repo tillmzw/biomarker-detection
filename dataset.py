@@ -241,7 +241,7 @@ class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
         # without using ().value, this would be a list of 1-element 1-d tensors
         boolean_mask = [(mask > self._presence_threshold).item() for mask in sum_masks]
         binary_mask = [{False: 0, True: 1}[m] for m in boolean_mask]
-        return img_name, img, torch.tensor(binary_mask)
+        return img_name, img, torch.tensor(binary_mask, dtype=torch.float)
 
 
 if __name__ == "__main__":
