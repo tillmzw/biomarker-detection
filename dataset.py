@@ -229,7 +229,7 @@ class PatchIDRIDDataset(IDRIDDataset):
         return t(crop)
 
 
-def BinaryPatchIDRIDDataset(PatchIDRIDDataset):
+class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
     def __init__(self, *args, presence_threshold=100, **kwargs):
         super().__init__(*args, **kwargs)
         self._presence_threshold = presence_threshold
