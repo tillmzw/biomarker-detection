@@ -219,9 +219,27 @@ class PatchIDRIDDataset(IDRIDDataset):
         logger.debug(f"Box for patch {patch_idx}: {bbox}")
         crop = image.crop(bbox)
         t = transforms.Compose((
+            transforms.RandomCrop(224),  # increase data variance
+            transforms.RandomHorizontalFlip(0.2),
+            transforms.RandomVerticalFlip(0.2),
             transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ))
         return t(crop)
+
+
+def BinaryPatchIDRIDDataset(PatchIDRIDDataset):
+    def __init__(self, *args, presence_threshold=100, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._presence_threshold = presence_threshold
+
+    def __getitem__(self, idx):
+        img_name, img, masks = super().__getitem__(idx)
+        # TODO: There is certainly a faster way to do this that is still readable
+        sum_masks = [torch.sum(mask[mask > 0]) for mask in masks]
+        boolean_mask = [mask > self._presence_threshold for mask in sum_masks]
+        binary_mask = [{False: 0, True: 1}[m] for m in boolean_mask]
+        return img_name, img, torch.tensor(binary_mask)
 
 
 if __name__ == "__main__":
@@ -229,7 +247,7 @@ if __name__ == "__main__":
 
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument('sample', default=0, help="Display this sample", type=int)
+    p.add_argument('sample', help="Display this sample", type=int)
     p.add_argument('-p', '--patched', default=-1, type=int, help="Use patched dataloader with this size")
     args = p.parse_args()
     print(f"Displaying sample {args.sample}")
