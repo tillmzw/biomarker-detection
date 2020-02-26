@@ -170,6 +170,9 @@ class IDRIDDataset(Dataset):
 class PatchIDRIDDataset(IDRIDDataset):
     # Transform single images into multiple patches
     def __init__(self, *args, patch_size=256, **kwargs):
+        """
+        Split every image from disk into `patch_size`**2 sized chunks and consider them independent samples.
+        """
         super().__init__(*args, **kwargs)
         self._patch_size = patch_size
         # FIXME: limiting does not consider patches, but only images
@@ -231,6 +234,11 @@ class PatchIDRIDDataset(IDRIDDataset):
 
 class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
     def __init__(self, *args, presence_threshold=100, **kwargs):
+        """
+        Dataset, that splits images into even patches (`patch_size`**2 in size) and calculates
+        presence and absence of features (loaded from mask files), giving a binary value for every
+        marker.
+        """
         super().__init__(*args, **kwargs)
         self._presence_threshold = presence_threshold
 
