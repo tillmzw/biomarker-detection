@@ -95,6 +95,7 @@ class IDRIDDataset(Dataset):
     def image_patch_index(self, loader_idx):
         """
         Return a tuple consisting of the image index and the patch index for 
+        Return a tuple consisting of the image index and the patch index for 
         this respective loader index.
         """
         return loader_idx, 0
@@ -223,7 +224,7 @@ class PatchIDRIDDataset(IDRIDDataset):
             transforms.RandomHorizontalFlip(0.2),
             transforms.RandomVerticalFlip(0.2),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ))
         return t(crop)
 

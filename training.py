@@ -117,16 +117,15 @@ class Trainer():
             if validation_dataloader:
                 validation_start = time.time()
                 try:
-                    entropy = validator.validate(model, validation_dataloader)
+                    validation_acc, validation_kappa, confusion = validator.validate(model, validation_dataloader)
                     # adapt the learning rate
-                    lr_sched.step(entropy)
+                    lr_sched.step(validation_acc)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
                 else:
-                    # TODO: fix logging to wandb
-                    wandb.log({"validation_loss": entropy, "lr": self.get_lr(optimizer)}, step=step)
-                    #logger.info("Validation during training at step %d: %05.2f%%, kappa = % 04.2f" % (step, validation_acc, validation_kappa))
+                    wandb.log({"validation_accuracy": validation_acc, "validation_kappa": validation_kappa, "lr": self.get_lr(optimizer)}, step=step)
+                    logger.info("Validation during training at step %d: %05.2f%%, kappa = % 04.2f" % (step, validation_acc, validation_kappa))
                     vt = time.time() - validation_start
                     vtt = vt // 60 + ((vt % 60) / 60)
                     # normalize by number of samples, i.e. normalize to seconds per image
@@ -135,11 +134,11 @@ class Trainer():
                     wandb.log({"epoch_training_validation_time_abs": vtt}, step=step)
                     wandb.log({"epoch_training_validation_time_image": vtt_image}, step=step)
 
-                    ## create a plot from the confusion matrix
-                    #logger.info("Creating confusion matrix plot")
-                    #plot = utils.plot_confusion_matrix(confusion)
-                    #implot = utils.plot_to_pil(plot)
-                    #wandb.log({"epoch_training_confusion_matrix": wandb.Image(implot)}, step=step)
+                    # create a plot from the confusion matrix
+                    logger.info("Creating confusion matrix plot")
+                    plot = utils.plot_confusion_matrix(confusion)
+                    implot = utils.plot_to_pil(plot)
+                    wandb.log({"epoch_training_confusion_matrix": wandb.Image(implot)}, step=step)
 
             if state_file:
                 # save intermediate model
