@@ -12,8 +12,8 @@ import wandb
 from torch.utils.data import DataLoader
 import tabulate
 
-from unet import model
-from dataset import IDRIDDataset, PatchIDRIDDataset
+import model
+from dataset import BinaryPatchIDRIDDataset
 import training
 import utils
 from validator import validate
@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     if args.validate:
         # TODO: Testset
-        testset = PatchIDRIDDataset("test", path=data_dir, limit=args.validation_limit)
+        testset = BinaryPatchIDRIDDataset("test", path=data_dir, limit=args.validation_limit)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
         testloader = None
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     if args.train:
         logger.info("Starting training")
 
-        trainset = PatchIDRIDDataset("train", path=data_dir, limit=args.limit)
+        trainset = BinaryPatchIDRIDDataset("train", path=data_dir, limit=args.limit)
 
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 
