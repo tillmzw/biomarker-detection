@@ -58,7 +58,7 @@ def validate(net, dataloader, record_file=None):
             _, predicted = torch.max(outputs.data, 1)
 
             predictions = torch.cat((predictions, predicted))
-            truth = torch.cat((truth, labels))
+            truth = torch.cat((truth, masks))
 
 
     # TODO: pull sample_weight from model?
