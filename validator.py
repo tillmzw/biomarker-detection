@@ -42,7 +42,6 @@ def validate(net, dataloader, record_file=None):
     # FIXME: this only works for one GPU!
     model_device = next(net.parameters()).device
 
-    # TODO: use sklearn.metrics.accuracy_score?
     # TODO: is there a better way to do this?
     predictions = torch.tensor(data=(), dtype=torch.float).to(model_device)
     truth = torch.tensor(data=(), dtype=torch.float).to(model_device)
@@ -55,17 +54,22 @@ def validate(net, dataloader, record_file=None):
             masks = masks.to(model_device)
 
             outputs = net(images)
-            logger.info(f"outputs:\n{outputs.shape}, dtype: {outputs.dtype}")
-            logger.info(f"masks:\n{masks.shape}, dtype: {masks.dtype}")
-            #_, predicted = torch.max(outputs.data, 1)
-            # TODO: one-hot for multiclass problem?
 
             predictions = torch.cat((predictions, outputs))
+            #predictions = torch.cat((predictions, predicted))
             truth = torch.cat((truth, masks))
 
+    # Note: .eq() != .equal()
+    overlap = torch.eq(truth, predictions)
+    # accuracy: fraction of matching predictions over total true masks
+    # FIXME: Fix division by zero error lurking in the shadows beyond
+    acc = torch.sum(overlap) / torch.sum(truth)
 
-    # TODO: pull sample_weight from model?
-    # make sure sklearn doesn't try to work on a CUDA device
-    confusion = confusion_matrix(y_true=truth.to("cpu"), y_pred=predictions.to("cpu"), sample_weight=None)
+    # FIXME: fix confusion matrix - how is it supposed to look?
+    #confusion = confusion_matrix(y_true=truth.to("cpu"), y_pred=predictions.to("cpu"), sample_weight=None)
+    confusion = torch.zeros(size=(2, 5), dtype=torch.int)
 
-    return acc, quadratic_kappa(predictions, truth), confusion
+    # FIXME: fix kappa calculation
+    # kappa = quadratic_kappa(predictions, truth)
+    kappa = 0
+    return acc, kappa, confusion

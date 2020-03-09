@@ -43,27 +43,27 @@ class ResNet(nn.Module):
     def forward(self, x):
         x = self.features(x)
         x = self.classifier(x)
-        x = F.log_softmax(x, dim=1)
+        x = torch.sigmoid(x)
         return x
 
 
 class ResNet50(ResNet):
-    def __init__(self, pretrained=False, transfer=False):
+    def __init__(self, pretrained=True, transfer=False):
         super().__init__(depth=50, pretrained=pretrained, transfer=transfer)
 
 
 class ResNet101(ResNet):
-    def __init__(self, pretrained=False, transfer=False):
+    def __init__(self, pretrained=True, transfer=False):
         super().__init__(depth=101, pretrained=pretrained, transfer=transfer)
 
 
 class WideResNet50(ResNet):
-    def __init__(self, pretrained=False, transfer=False):
+    def __init__(self, pretrained=True, transfer=False):
         super().__init__(name_fmt="wide_resnet{depth}_2", depth=50, pretrained=pretrained, transfer=transfer)
 
 
 class DenseNet161(nn.Module):
-    def __init__(self, pretrained=False, transfer=False):
+    def __init__(self, pretrained=True, transfer=False):
         super().__init__()
         self._name = "densenet161"
         self._pretrained = pretrained
