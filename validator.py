@@ -44,8 +44,8 @@ def validate(net, dataloader, record_file=None):
 
     # TODO: use sklearn.metrics.accuracy_score?
     # TODO: is there a better way to do this?
-    predictions = torch.tensor(data=(), dtype=torch.int64).to(model_device)
-    truth = torch.tensor(data=(), dtype=torch.int64).to(model_device)
+    predictions = torch.tensor(data=(), dtype=torch.float).to(model_device)
+    truth = torch.tensor(data=(), dtype=torch.float).to(model_device)
 
     with torch.no_grad():
         for i, data in enumerate(dataloader):
@@ -55,9 +55,12 @@ def validate(net, dataloader, record_file=None):
             masks = masks.to(model_device)
 
             outputs = net(images)
-            _, predicted = torch.max(outputs.data, 1)
+            logger.info(f"outputs:\n{outputs.shape}, dtype: {outputs.dtype}")
+            logger.info(f"masks:\n{masks.shape}, dtype: {masks.dtype}")
+            #_, predicted = torch.max(outputs.data, 1)
+            # TODO: one-hot for multiclass problem?
 
-            predictions = torch.cat((predictions, predicted))
+            predictions = torch.cat((predictions, outputs))
             truth = torch.cat((truth, masks))
 
 
