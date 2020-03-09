@@ -25,7 +25,7 @@ class Trainer():
         super().__init__()
         self._epochs = epochs
 
-    def get_optimizer(self):
+    def get_optimizer(self, model):
         raise NotImplementedError
 
     def get_loss_function(self, weights=None):
