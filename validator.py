@@ -59,11 +59,14 @@ def validate(net, dataloader, record_file=None):
             #predictions = torch.cat((predictions, predicted))
             truth = torch.cat((truth, masks))
 
+    # as predictions are still float values (as given by a sigmoid function), round them first
+    predictions = torch.round(predictions)
+    # .eq() does element-wise equality checks
     # Note: .eq() != .equal()
     overlap = torch.eq(truth, predictions)
-    # accuracy: fraction of matching predictions over total true masks
-    # FIXME: Fix division by zero error lurking in the shadows beyond
-    acc = torch.sum(overlap) / torch.sum(truth)
+    # accuracy: fraction of matching predictions over total item number
+    # `.item()` on a single-item tensor to extract the value
+    acc = torch.sum(overlap).item() / truth.numel() * 100
 
     # FIXME: fix confusion matrix - how is it supposed to look?
     #confusion = confusion_matrix(y_true=truth.to("cpu"), y_pred=predictions.to("cpu"), sample_weight=None)
