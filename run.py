@@ -122,15 +122,18 @@ if __name__ == "__main__":
         acc, kappa, confusion = validate(net, testloader, record_file=mmr)
         # log the confusion matrix
         logger.info("Final validation run: %05.2f%% accuracy, kappa = % 04.2f" % (acc, kappa))
-        logger.info("Confusion matrix:")
 
+        """
+        # FIXME: this generates a floating point exception (SIGFPE) when run on
+        #  multilabel resnets and without a proper confusion matrix. 
+        logger.info("Confusion matrix:")
         confusion_norm = utils.norm_mat(confusion, norm="rows")
         # because we plot the indices, the first header item should be empty for clarity
         headers = (" ",) + tuple(range(confusion.shape[0] + 1))
         table = tabulate.tabulate(confusion_norm, headers, showindex="always", tablefmt="fancy_grid")
         for line in table.split("\n"):
             logger.info(line)
-
+        """
         # create a plot from the confusion matrix
         logger.info("Creating confusion matrix plot")
         plot = utils.plot_confusion_matrix(confusion)
