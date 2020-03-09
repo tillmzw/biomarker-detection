@@ -72,7 +72,11 @@ def plot_confusion_matrix(confusion):
     import matplotlib.pyplot as plt
     import itertools
 
-    confusion_norm = norm_mat(confusion, norm="rows")
+    if confusion.min() != confusion.max():
+        # this guard prevents `nan`s produced by normlization for an all-0 tensor
+        confusion_norm = norm_mat(confusion, norm="rows")
+    else:
+        confusion_norm = confusion
     assert confusion_norm.max() <= 1, "Confusion matrix contains values > 1; color map does not accomodate such values"
 
     n_classes = confusion.shape[0]
