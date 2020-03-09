@@ -33,9 +33,15 @@ class IDRIDDataset(Dataset):
                 n = math.floor(len(self._images) * limit)
             else:
                 n = int(limit)
-            logger.info(f"Limiting number of images to {n} (based on limit = {limit})")
-            self._images = random.sample(self._images, n)
-            assert len(self._images) == n, "Limiting dataset failed"
+            self._limit = n
+            self._limit_dataset()
+        else:
+            self._limit = None
+
+    def _limit_dataset(self):
+        # Move this to a method to allow children to override this.
+        logger.info(f"Limiting number of images to {self._limit}")
+        self._images = random.sample(self._images, self._limit)
 
     def _extract_image_paths(self, itype, path):
         if itype == "train":
@@ -173,9 +179,14 @@ class PatchIDRIDDataset(IDRIDDataset):
         """
         Split every image from disk into `patch_size`**2 sized chunks and consider them independent samples.
         """
-        super().__init__(*args, **kwargs)
         self._patch_size = patch_size
-        # FIXME: limiting does not consider patches, but only images
+        super().__init__(*args, **kwargs)
+
+    def _limit_dataset(self):
+        # Note: further limiting is done in __len__ and __getitem__
+        n_images = np.max(1, self._limit // self._patch_number)
+        logger.info(f"Limiting number of images to {n_images} (additional patching limits apply)")
+        self._images = random.sample(self._images, n_images)
 
     @property
     def _image_dims(self):
@@ -199,7 +210,18 @@ class PatchIDRIDDataset(IDRIDDataset):
         return image_idx, patch_idx
 
     def __len__(self):
-        return super().__len__() * self._patch_number
+        if self._limit:
+            max_len = len(self._images) * self._patch_number
+            real_len = np.min((max_len, self._limit))
+            logger.info(f"Limiting number of patches to {real_len} (maximum after first shrinking: {max_len}")
+            return real_len
+        else:
+            return len(self._images) * self._patch_number
+
+    def __getitem__(self, idx):
+        if self._limit and idx > self._limit:
+            raise IndexError
+        return super().__getitem__(idx)
 
     def transform(self, image, patch_idx):
         # crop image first
