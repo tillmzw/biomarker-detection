@@ -6,7 +6,7 @@ import logging
 import torch
 import numpy as np
 import pandas as pd
-from sklearn.metrics import cohen_kappa_score, confusion_matrix
+from sklearn.metrics import cohen_kappa_score, multilabel_confusion_matrix
 
 
 logger = logging.getLogger(__name__)
@@ -68,9 +68,7 @@ def validate(net, dataloader, record_file=None):
     # `.item()` on a single-item tensor to extract the value
     acc = torch.sum(overlap).item() / truth.numel() * 100
 
-    # FIXME: fix confusion matrix - how is it supposed to look?
-    #confusion = confusion_matrix(y_true=truth.to("cpu"), y_pred=predictions.to("cpu"), sample_weight=None)
-    confusion = torch.zeros(size=(2, 5), dtype=torch.int)
+    confusion = multilabel_confusion_matrix(y_true=truth.to("cpu"), y_pred=predictions.to("cpu"))
 
     # FIXME: fix kappa calculation
     # kappa = quadratic_kappa(predictions, truth)

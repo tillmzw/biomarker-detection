@@ -38,7 +38,7 @@ class Trainer():
         # borrowed from torch.optim.lr_scheduler
         lrs = [float(group['lr']) for group in optimizer.param_groups]
         if len(lrs) > 1:
-            logger.debug("Averaging learning rates - have {len(lrs)} entries")
+            logger.debug(f"Averaging learning rates - have {len(lrs)} entries")
         return np.mean(lrs)
 
     def train(self, model, dataloader, state_file=None, validation_dataloader=None):

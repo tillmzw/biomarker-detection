@@ -4,6 +4,7 @@ import subprocess
 import logging
 import os
 import datetime
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -59,12 +60,45 @@ def norm_mat(mat, norm="all"):
     return mat
 
 
-def plot_confusion_matrix(confusion):
+def convert_multilabel_confusion_mat(mat):
+    """
+     the confusion matrix is expected to be for every class
+    [
+        [true_negative, false_negative],
+        [true_positive, false_positive]
+    ]
+    so the final confusion matrix has the shape (5, 2, 2) when calculated for 5 classes:
+    [
+        [
+            [TN_c0, FN_c0],
+            [TP_c0, TN_c0]
+        ],
+        [
+            [TN_c1, FN_c1],
+            [TP_c1, TN_c1]
+        ],
+        ...
+    ]
+    the output will look like:
+    [
+        [TN_c0, FN_c0, TP_c0, TN_c0],
+        [TN_c1, FN_c1, TP_c1, TN_c1],
+        ...
+    ]
+    """
+    cmat = mat.reshape((5, 4, -1)).squeeze()
+    return cmat
+
+
+def plot_confusion_matrix(confusion, classes=None):
     """
     Create a matplotlib plot from the 2d matrix `confusion`.
     Can normalize to "rows" (ground truth), "cols" (predictions), "all" (all elements sum to 1).
     FIXME: this operates on matplotlib's global pyplot object
     """
+
+    if len(confusion.shape) == 3:
+        return plot_multilabel_confusion_matrix(confusion)
 
     # this is a reproduction of the plotting functionality in sklearn's confusion_matrix:
     # https://github.com/scikit-learn/scikit-learn/blob/master/sklearn/metrics/_plot/confusion_matrix.py
@@ -81,7 +115,14 @@ def plot_confusion_matrix(confusion):
 
     n_classes = confusion.shape[0]
     text = np.empty_like(confusion, dtype=object)
-    display_labels = ("class %d" % c for c in range(n_classes))
+    if classes:
+        if n_classes != len(classes):
+            logger.warning("Bad class legend")
+            display_labels = ("?" for _ in range(n_classes))
+        else:
+            display_labels = classes
+    else:
+        display_labels = ("class %d" % c for c in range(n_classes))
     values_format = "{row_norm:.2g}\nn={abs_val:d}"
 
     fig, ax = plt.subplots()
@@ -110,6 +151,45 @@ def plot_confusion_matrix(confusion):
     ax.set_ylim((n_classes - 0.5, -0.5))
     plt.setp(ax.get_xticklabels(), rotation="horizontal")
 
+    return plt
+
+
+def plot_multilabel_confusion_matrix(confusion):
+    assert len(confusion.shape) == 3, "Not a multilabel confusion matrix"
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import itertools
+    import dataset
+
+    confusion = convert_multilabel_confusion_mat(confusion)
+    confusion_norm = norm_mat(confusion, norm="rows")
+    n_classes = confusion.shape[0]
+
+    fig, ax = plt.subplots()
+    text = np.empty_like(confusion, dtype=object)
+    values_format = "{row_norm:.2g}\nn={abs_val:d}"
+    im = ax.imshow(confusion, interpolation="nearest", cmap="viridis")
+
+    cmap_min, cmap_max = im.cmap(0), im.cmap(256)
+    # choose an appropriate color for the text, based on background color
+    thresh = (confusion_norm.max() + confusion_norm.min()) / 2.0
+    for i, j in itertools.product(range(n_classes), range(4)):
+        color = cmap_max if confusion_norm[i, j] < thresh else cmap_min
+        text[i, j] = ax.text(j, i,
+                             values_format.format(row_norm=confusion_norm[i, j], abs_val=confusion[i, j]),
+                             ha="center", va="center",
+                             fontsize=8,
+                             color=color)
+    fig.colorbar(im, ax=ax)
+
+    ax.set(
+        xticks=np.arange(4),
+        yticks=np.arange(n_classes),
+        xticklabels=("TN", "FN", "TP", "FP"),
+        yticklabels=dataset.IDRIDDataset.CLASSES,
+        ylabel="Class"
+    )
     return plt
 
 
