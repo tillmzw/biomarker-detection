@@ -32,7 +32,7 @@ class IDRIDDataset(Dataset):
         if limit is not None:
             if limit < 1:
                 # limit is a percentage and should result in at least one image
-                n = np.max((math.floor(len(self._images) * limit), 1))
+                n = max((math.floor(len(self._images) * limit), 1))
             else:
                 n = int(limit)
             self._limit = n
@@ -188,6 +188,7 @@ class PatchIDRIDDataset(IDRIDDataset):
 
     def _limit_dataset(self):
         # Note: further limiting is done in __len__ and __getitem__
+        # TODO: This might over-limiting: _limit is probably << _patch_number, and thus n_images 1
         n_images = np.max(1, self._limit // self._patch_number)
         logger.debug(f"Limiting number of images in {self._itype} to {n_images} (additional patching limits apply)")
         self._images = random.sample(self._images, n_images)
