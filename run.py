@@ -93,7 +93,6 @@ if __name__ == "__main__":
     data_dir = args.data_dir
 
     if args.validate:
-        # TODO: Testset
         testset = BinaryPatchIDRIDDataset("test", path=data_dir, limit=args.validation_limit)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
@@ -103,7 +102,6 @@ if __name__ == "__main__":
         logger.info("Starting training")
 
         trainset = BinaryPatchIDRIDDataset("train", path=data_dir, limit=args.limit)
-
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 
         trainer = training.AdamTrainer(epochs=args.epochs)

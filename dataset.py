@@ -25,8 +25,10 @@ class IDRIDDataset(Dataset):
     CLASSES = ("Microaneurysms", "Haemorrhages", "Hard Exudates", "Soft Exudates", "Optic Disc")
 
     def __init__(self, itype, path=DEFAULT_DATA_DIR, limit=None, device="cpu"):
+        self._itype = itype  # for logging purposes
         self._device = torch.device(device)
         self._images = self._extract_image_paths(itype, path)
+        n_images_unlimited = len(self._images)
         if limit is not None:
             if limit < 1:
                 # limit is a percentage and should result in at least one image
@@ -38,9 +40,11 @@ class IDRIDDataset(Dataset):
         else:
             self._limit = None
 
+        logger.info(f"Using {len(self._images)} of {n_images_unlimited} available images for type {self._itype}")
+
     def _limit_dataset(self):
         # Move this to a method to allow children to override this.
-        logger.info(f"Limiting number of images to {self._limit}")
+        logger.debug(f"Limiting number of images in {self._itype} to {self._limit}")
         self._images = random.sample(self._images, self._limit)
 
     def _extract_image_paths(self, itype, path):
@@ -185,7 +189,7 @@ class PatchIDRIDDataset(IDRIDDataset):
     def _limit_dataset(self):
         # Note: further limiting is done in __len__ and __getitem__
         n_images = np.max(1, self._limit // self._patch_number)
-        logger.info(f"Limiting number of images to {n_images} (additional patching limits apply)")
+        logger.debug(f"Limiting number of images in {self._itype} to {n_images} (additional patching limits apply)")
         self._images = random.sample(self._images, n_images)
 
     @property
