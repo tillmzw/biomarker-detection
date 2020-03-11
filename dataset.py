@@ -29,8 +29,8 @@ class IDRIDDataset(Dataset):
         self._images = self._extract_image_paths(itype, path)
         if limit is not None:
             if limit < 1:
-                # limit is a percentage
-                n = math.floor(len(self._images) * limit)
+                # limit is a percentage and should result in at least one image
+                n = np.max((math.floor(len(self._images) * limit), 1))
             else:
                 n = int(limit)
             self._limit = n
@@ -40,7 +40,7 @@ class IDRIDDataset(Dataset):
 
     def _limit_dataset(self):
         # Move this to a method to allow children to override this.
-        logger.debug(f"Limiting number of images to {self._limit}")
+        logger.info(f"Limiting number of images to {self._limit}")
         self._images = random.sample(self._images, self._limit)
 
     def _extract_image_paths(self, itype, path):
@@ -185,7 +185,7 @@ class PatchIDRIDDataset(IDRIDDataset):
     def _limit_dataset(self):
         # Note: further limiting is done in __len__ and __getitem__
         n_images = np.max(1, self._limit // self._patch_number)
-        logger.debug(f"Limiting number of images to {n_images} (additional patching limits apply)")
+        logger.info(f"Limiting number of images to {n_images} (additional patching limits apply)")
         self._images = random.sample(self._images, n_images)
 
     @property
@@ -213,7 +213,7 @@ class PatchIDRIDDataset(IDRIDDataset):
         if self._limit:
             max_len = len(self._images) * self._patch_number
             real_len = np.min((max_len, self._limit))
-            logger.debug(f"Limiting number of patches to {real_len} (maximum after first shrinking: {max_len}")
+            logger.debug(f"Limiting number of patches to {real_len} with {len(self._images)} images")
             return real_len
         else:
             return len(self._images) * self._patch_number
