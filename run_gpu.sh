@@ -51,7 +51,7 @@ echo -e "======================================================"
 		--state $WORKDIR/model.pth \
 		--batch 24 \
 		--epochs 30 \
-		--patch-size 128 \
+		--patch-size 256 \
 		--presence-threshold 10 \
 		--train \
 		--validate \
