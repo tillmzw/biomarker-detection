@@ -226,7 +226,9 @@ class PatchIDRIDDataset(IDRIDDataset):
     def __getitem__(self, idx):
         if self._limit and idx > self._limit:
             raise IndexError
-        return super().__getitem__(idx)
+        name, image, mask = super().__getitem__(idx)
+        image_idx, patch_idx = self.image_patch_index(idx)
+        return (name, image_idx, patch_idx), image, mask
 
     def transform(self, image, patch_idx):
         # crop image first
@@ -270,13 +272,13 @@ class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
         self._presence_threshold = presence_threshold
 
     def __getitem__(self, idx):
-        img_name, img, masks = super().__getitem__(idx)
+        img_meta, img, masks = super().__getitem__(idx)
         # TODO: There is certainly a faster way to do this that is still readable
         sum_masks = [torch.sum(mask[mask > 0]) for mask in masks]
         # without using ().value, this would be a list of 1-element 1-d tensors
         boolean_mask = [(mask > self._presence_threshold).item() for mask in sum_masks]
         binary_mask = [{False: 0, True: 1}[m] for m in boolean_mask]
-        return img_name, img, torch.tensor(binary_mask, dtype=torch.float)
+        return img_meta, img, torch.tensor(binary_mask, dtype=torch.float)
 
 
 if __name__ == "__main__":
@@ -298,7 +300,11 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
 
-    dname, di, dm = ds[args.sample]  # get an image and its list of masks from the dataset
+    dmeta, di, dm = ds[args.sample]  # get an image and its list of masks from the dataset
+    if isinstance(dmeta, (list, tuple)):
+        dname = dmeta[0]
+    else:
+        dname = dmeta
     print(dname)
     di = di.permute(1, 2, 0)  # reorder dims
 
