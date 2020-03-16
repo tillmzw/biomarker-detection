@@ -119,9 +119,9 @@ if __name__ == "__main__":
     if args.validate:
         # mismatch record file
         mmr = os.path.join(args.scratch, "mismatches.csv") if (args.scratch and args.mismatches) else None
-        acc, kappa, confusion = validate(net, testloader, record_file=mmr)
+        acc, confusion = validate(net, testloader, record_filename=mmr)
         # log the confusion matrix
-        logger.info("Final validation run: %05.2f%% accuracy, kappa = % 04.2f" % (acc, kappa))
+        logger.info("Final validation run: %05.2f%% accuracy" % acc)
 
         """
         # FIXME: this generates a floating point exception (SIGFPE) when run on

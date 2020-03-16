@@ -8,26 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import cohen_kappa_score, multilabel_confusion_matrix
 
-
 logger = logging.getLogger(__name__)
-
-
-def quadratic_kappa(y_hat, y, classes=5):
-    """Converts Cohen's Kappa metric to a tensor, as seen in
-    https://www.kaggle.com/tanlikesmath/diabetic-retinopathy-with-resnet50-oversampling
-    `y_hat`: the prediction
-    `y`: the true labels
-    """
-    if y_hat.dim() == 1:
-        y_hat_max = y_hat
-    elif y_hat.dim() == 2:
-        y_hat_max = torch.argmax(y_hat, 1)
-    else:
-        raise RuntimeError("Invalid dimension for kappa calculations: %d" % y_hat.dims())
-    #  can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
-    y_hat_max = y_hat_max.cpu()
-    y = y.cpu()
-    return torch.tensor(cohen_kappa_score(y_hat_max, y, weights='quadratic', labels=np.array(range(classes))))
 
 
 def validate(net, dataloader, record_file=None):
