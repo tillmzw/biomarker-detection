@@ -45,6 +45,23 @@ def hostname():
         return host
 
 
+def rescale_vector(v, x=1):
+    """Rescale `v` to be between 0 and `x`."""
+    rv = (v - np.min(v)) * (x / (np.max(v) - np.min(v)))
+    # or, shorter:
+    # rv = (v - np.min(v)) / np.ptp(v) * x
+    return rv
+
+
+def rescale_pixel_values(img):
+    rimg = np.zeros(shape=img.shape)
+    for channel in range(img.shape[2]):
+        imgc = img[:, :, channel]
+        rimg[:, :, channel] = (imgc - imgc.min()) / np.ptp(imgc) * 255
+
+    return rimg.astype(np.int)
+
+
 def norm_mat(mat, norm="all"):
     if norm not in ("rows", "cols", "all"):
         raise SyntaxError("Invalid argument to `norm_mat`: %s" % norm)

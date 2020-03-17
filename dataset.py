@@ -105,7 +105,6 @@ class IDRIDDataset(Dataset):
     def image_patch_index(self, loader_idx):
         """
         Return a tuple consisting of the image index and the patch index for 
-        Return a tuple consisting of the image index and the patch index for 
         this respective loader index.
         """
         return loader_idx, 0
@@ -168,7 +167,7 @@ class IDRIDDataset(Dataset):
     def transform(self, image, patch_idx=None):
         """Take a PIL image, apply transforms and return a tensor."""
         t = transforms.Compose((
-            transforms.Resize(256),
+            #transforms.Resize(256),
             transforms.ToTensor(),
         ))
         return t(image)
@@ -251,13 +250,23 @@ class PatchIDRIDDataset(IDRIDDataset):
         bbox = (w0, h0, w1, h1)
         logger.debug(f"Box for patch {patch_idx}: {bbox}")
         crop = image.crop(bbox)
-        t = transforms.Compose((
-            transforms.RandomCrop(224),  # increase data variance
-            transforms.RandomHorizontalFlip(0.2),
-            transforms.RandomVerticalFlip(0.2),
-            transforms.ToTensor(),
-            #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ))
+
+        # follow up with actual transformations
+        if len(image.getbands()) == 3:  # 3-channel image
+            t = transforms.Compose((
+                # TODO: are these transformations useful?
+                #transforms.RandomCrop(224),  # increase data variance
+                #transforms.RandomHorizontalFlip(0.2),
+                #transforms.RandomVerticalFlip(0.2),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ))
+        else:  # no 3 channels, probably the mask
+            t = transforms.Compose((
+                transforms.ToTensor(),
+                # TODO: confirm: masks don't need normalization
+                #transforms.Normalize(mean=[0.5], std=[0.5])
+            ))
         return t(crop)
 
 
@@ -282,9 +291,14 @@ class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
 
 
 if __name__ == "__main__":
+    import argparse
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+
+    import utils
+
     print(f"Exploring test dataset at {DEFAULT_DATA_DIR}")
 
-    import argparse
     p = argparse.ArgumentParser()
     p.add_argument('sample', help="Display this sample", type=int)
     p.add_argument('-p', '--patched', default=-1, type=int, help="Use patched dataloader with this size")
@@ -296,9 +310,6 @@ if __name__ == "__main__":
         ds = IDRIDDataset("test")
 
     assert args.sample <= len(ds), f"Sample {args.sample} does not exist; largest sample is {len(ds)}"
-
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
 
     dmeta, di, dm = ds[args.sample]  # get an image and its list of masks from the dataset
     if isinstance(dmeta, (list, tuple)):
@@ -320,7 +331,9 @@ if __name__ == "__main__":
     for i, cls in enumerate(ds.CLASSES):
         mask = dm[i, :, :]
         pixels = torch.sum(mask[mask > 0])
-        axes[i + 1].imshow(di, alpha=1.0)
+        # TODO: fix plotting -- rescale_vector is not (yet) compatible with >1d vectors
+        di_s = utils.rescale_pixel_values(di)
+        axes[i + 1].imshow(di_s, alpha=1.0)
         axes[i + 1].imshow(mask, alpha=0.5, cmap=cm.binary)
         axes[i + 1].set_title(f"{cls}; px={pixels}")
 
