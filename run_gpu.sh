@@ -50,7 +50,7 @@ echo -e "======================================================"
 		--data-dir $TMPDIR/data \
 		--state $WORKDIR/model.pth \
 		--batch 24 \
-		--epochs 30 \
+		--epochs 20 \
 		--patch-size 256 \
 		--presence-threshold 10 \
 		--train \
