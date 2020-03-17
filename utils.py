@@ -84,22 +84,26 @@ def convert_multilabel_confusion_mat(mat):
         [true_negative, false_negative],
         [true_positive, false_positive]
     ]
+    [
+        [true_negative, false_positive],
+        [false_negative, true_positive]
+    ]
     so the final confusion matrix has the shape (5, 2, 2) when calculated for 5 classes:
     [
         [
-            [TN_c0, FN_c0],
-            [TP_c0, TN_c0]
+            [TN_c0, FP_c0],
+            [FN_c0, TP_c0]
         ],
         [
-            [TN_c1, FN_c1],
-            [TP_c1, TN_c1]
+            [TN_c1, FP_c1],
+            [FN_c1, TP_c1]
         ],
         ...
     ]
     the output will look like:
     [
-        [TN_c0, FN_c0, TP_c0, TN_c0],
-        [TN_c1, FN_c1, TP_c1, TN_c1],
+        [TN_c0, FP_c0, FN_c0, TP_c0],
+        [TN_c1, FP_c1, FN_c1, TP_c1],
         ...
     ]
     """
@@ -203,7 +207,7 @@ def plot_multilabel_confusion_matrix(confusion):
     ax.set(
         xticks=np.arange(4),
         yticks=np.arange(n_classes),
-        xticklabels=("TN", "FN", "TP", "FP"),
+        xticklabels=("TN", "FP", "FN", "TP"),
         yticklabels=dataset.IDRIDDataset.CLASSES,
         ylabel="Class"
     )
