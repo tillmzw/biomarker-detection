@@ -14,7 +14,7 @@
 declare -r TARGET_USER="tm19i462"
 if [ "$(whoami)" != "$TARGET_USER" ]; then
 	echo "You are not $TARGET_USER -- aborting to make sure you don't break stuff" >&2
-	exit -1
+	exit 1
 fi
 
 # CUDA library
@@ -57,5 +57,5 @@ echo -e "======================================================"
 		--validate \
 		--log $WORKDIR/log.txt \
 		--scratch $WORKDIR \
-		$@
+		"$@"
 )
