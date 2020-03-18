@@ -167,7 +167,6 @@ class IDRIDDataset(Dataset):
     def transform(self, image, patch_idx=None):
         """Take a PIL image, apply transforms and return a tensor."""
         t = transforms.Compose((
-            #transforms.Resize(256),
             transforms.ToTensor(),
         ))
         return t(image)
@@ -213,6 +212,26 @@ class PatchIDRIDDataset(IDRIDDataset):
         logger.debug(f"Loader index {loader_idx} --> image {image_idx}, patch {patch_idx}")
         return image_idx, patch_idx
 
+    def _get_bounding_box(self, patch_idx):
+        """
+        Returns the bounding box for a patch_idx in its image as (left, upper, right, lower)
+        """
+        w, h = self._image_dims
+        # FIXME: biased against "end" of image - might never be included!
+        patches_w = w // self._patch_size
+        patches_h = h // self._patch_size
+
+        logger.debug(f"Image with dimensions {w}x{h} has room for {patches_w} x {patches_h} patches")
+        w_idx = patch_idx % patches_w
+        h_idx = patch_idx // (patches_h + 1)
+
+        w0 = w_idx * self._patch_size
+        w1 = w0 + self._patch_size
+        h0 = h_idx * self._patch_size
+        h1 = h0 + self._patch_size
+
+        return w0, h0, w1, h1
+
     def __len__(self):
         if self._limit:
             max_len = len(self._images) * self._patch_number
@@ -232,50 +251,37 @@ class PatchIDRIDDataset(IDRIDDataset):
     def transform(self, image, patch_idx):
         # crop image first
         assert image.size == self._image_dims, f"Bad image size: {image.size}"
-        w, h = self._image_dims
-        # FIXME: biased against "end" of image - might never be included!
-        patches_w = w // self._patch_size
-        patches_h = h // self._patch_size
 
-        logger.debug(f"{image.size} has room for {patches_w} x {patches_h} patches")
-        w_idx = patch_idx % patches_w
-        h_idx = patch_idx // (patches_h + 1)
-
-        w0 = w_idx * self._patch_size
-        w1 = w0 + self._patch_size
-        h0 = h_idx * self._patch_size
-        h1 = h0 + self._patch_size
-
-        # (left, upper, right, lower)
-        bbox = (w0, h0, w1, h1)
-        logger.debug(f"Box for patch {patch_idx}: {bbox}")
+        bbox = self._get_bounding_box(patch_idx)
         crop = image.crop(bbox)
 
         # follow up with actual transformations
-        if len(image.getbands()) == 3:  # 3-channel image
-            t = transforms.Compose((
-                # TODO: are these transformations useful?
-                #transforms.RandomCrop(224),  # increase data variance
-                #transforms.RandomHorizontalFlip(0.2),
-                #transforms.RandomVerticalFlip(0.2),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ))
-        else:  # no 3 channels, probably the mask
-            t = transforms.Compose((
-                transforms.ToTensor(),
-                # TODO: confirm: masks don't need normalization
-                #transforms.Normalize(mean=[0.5], std=[0.5])
-            ))
+        t = transforms.Compose((
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ))
+        return t(crop)
+
+    def mask_transform(self, mask, patch_idx=None):
+        assert mask.size == self._image_dims, f"Bad mask size: {mask.size}"
+
+        bbox = self._get_bounding_box(patch_idx)
+        crop = mask.crop(bbox)
+        t = transforms.Compose((
+            transforms.ToTensor(),
+            # TODO: confirm: masks don't need normalization
+            #transforms.Normalize(mean=[0.5], std=[0.5])
+        ))
         return t(crop)
 
 
 class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
     def __init__(self, *args, presence_threshold=100, **kwargs):
         """
-        Dataset, that splits images into even patches (`patch_size`**2 in size) and calculates
+        Dataset that splits images into even patches (`patch_size`**2 in size) and calculates
         presence and absence of features (loaded from mask files), giving a binary value for every
-        marker.
+        marker. As such, the image itself can be exposed to random transforms without affecting the
+        mask outputs.
         """
         super().__init__(*args, **kwargs)
         self._presence_threshold = presence_threshold
@@ -288,6 +294,36 @@ class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
         boolean_mask = [(mask > self._presence_threshold).item() for mask in sum_masks]
         binary_mask = [{False: 0, True: 1}[m] for m in boolean_mask]
         return img_meta, img, torch.tensor(binary_mask, dtype=torch.float)
+
+    def transform(self, image, patch_idx):
+        assert image.size == self._image_dims, f"Bad image size: {image.size}"
+
+        bbox = self._get_bounding_box(patch_idx)
+        crop = image.crop(bbox)
+
+        # follow up with actual transformations
+        # Note: Since the mask here is binary, any transformations performed on the image
+        #       will not affect the mask's output which is 1 or 0 anyway!
+        t = transforms.Compose((
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomVerticalFlip(0.5),
+            transforms.RandomRotation(0.2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ))
+        return t(crop)
+
+    def mask_transform(self, mask, patch_idx=None):
+        assert mask.size == self._image_dims, f"Bad mask size: {mask.size}"
+
+        bbox = self._get_bounding_box(patch_idx)
+        crop = mask.crop(bbox)
+        t = transforms.Compose((
+            transforms.ToTensor(),
+            # TODO: confirm: masks don't need normalization
+            #transforms.Normalize(mean=[0.5], std=[0.5])
+        ))
+        return t(crop)
 
 
 if __name__ == "__main__":
@@ -334,7 +370,8 @@ if __name__ == "__main__":
         # TODO: fix plotting -- rescale_vector is not (yet) compatible with >1d vectors
         di_s = utils.rescale_pixel_values(di)
         axes[i + 1].imshow(di_s, alpha=1.0)
-        axes[i + 1].imshow(mask, alpha=0.5, cmap=cm.binary)
+        # TODO: fix cmap - cmap range might be wrong?
+        axes[i + 1].imshow(mask.to(dtype=torch.float), alpha=0.5, cmap=cm.binary)
         axes[i + 1].set_title(f"{cls}; px={pixels}")
 
     plt.show()
