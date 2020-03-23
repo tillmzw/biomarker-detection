@@ -81,30 +81,26 @@ def convert_multilabel_confusion_mat(mat):
     """
      the confusion matrix is expected to be for every class
     [
-        [true_negative, false_negative],
-        [true_positive, false_positive]
-    ]
-    [
         [true_negative, false_positive],
         [false_negative, true_positive]
     ]
     so the final confusion matrix has the shape (5, 2, 2) when calculated for 5 classes:
     [
         [
-            [TN_c0, FP_c0],
-            [FN_c0, TP_c0]
-        ],
-        [
             [TN_c1, FP_c1],
             [FN_c1, TP_c1]
         ],
         ...
+        [
+            [TN_c5, FP_c5],
+            [FN_c5, TP_c5]
+        ],
     ]
     the output will look like:
     [
-        [TN_c0, FP_c0, FN_c0, TP_c0],
         [TN_c1, FP_c1, FN_c1, TP_c1],
         ...
+        [TN_c5, FP_c5, FN_c5, TP_c5],
     ]
     """
     cmat = mat.reshape((5, 4, -1)).squeeze()
