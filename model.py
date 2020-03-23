@@ -44,7 +44,6 @@ class ResNet(nn.Module):
         x = self.features(x)
         x = self.classifier(x)
         x = torch.sigmoid(x)
-        x = torch.round(x)
         return x
 
 
