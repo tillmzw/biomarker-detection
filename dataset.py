@@ -175,6 +175,49 @@ class IDRIDDataset(Dataset):
         return self.transform(mask, patch_idx)
 
 
+class RandomPatchIDRIDDataset(IDRIDDataset):
+    def __init__(self, *args, patch_size=256, n_patches=100, **kwargs):
+        """
+        Split every image from disk into `n_patches` times `patch_size`**2-sized chunks and consider them independent samples.
+        Note: These chunks may overlap!
+        """
+        self._patch_size = patch_size
+        self._n_patches = n_patches
+        super().__init__(*args, **kwargs)
+
+    def __len__(self):
+        return min(self._limit or np.inf, self._n_patches * len(self._images))
+
+    def __getitem__(self, idx):
+        image_idx = idx // self._n_patches
+
+        img_path, _ = self._images[image_idx]
+        img_name, _ = os.path.splitext(os.path.basename(img_path))
+
+        image = self._load_image(image_idx)
+        masks = self._load_masks(image_idx)
+
+        tower = torch.cat((image, masks), dim=0)
+        w, h = self._image_dims
+        row_start = random.randint(0, (h - self._patch_size))
+        row_end = row_start + self._patch_size
+
+        col_start = random.randint(0, (w - self._patch_size))
+        col_end = col_start + self._patch_size
+
+        tower_cropped = tower[:, row_start:row_end, col_start:col_end]
+        image_c = tower_cropped[0:3, :, :]
+        masks_c = tower_cropped[3:8, :, :]
+
+        # TODO: apply tensor-transformations to image
+
+        return img_name, image_c, masks_c
+
+    @property
+    def _image_dims(self):
+        return 4288, 2848
+
+
 class PatchIDRIDDataset(IDRIDDataset):
     # Transform single images into multiple patches
     def __init__(self, *args, patch_size=256, **kwargs):
@@ -336,16 +379,23 @@ if __name__ == "__main__":
     print(f"Exploring test dataset at {DEFAULT_DATA_DIR}")
 
     p = argparse.ArgumentParser()
-    p.add_argument('sample', help="Display this sample", type=int)
-    p.add_argument('-p', '--patched', default=-1, type=int, help="Use patched dataloader with this size")
+    p.add_argument('sample', nargs="?", default=None, help="Display this sample", type=int)
+    p.add_argument('-p', '--patched', nargs="?", default=None, const=500, type=int, help="Use patched dataloader with this size")
+    p.add_argument('-r', '--random', nargs="?", default=None, const=100, type=int, help="Use random patch dataloader with this many patches")
     args = p.parse_args()
-    print(f"Displaying sample {args.sample}")
-    if args.patched > 0:
+
+    if args.random:
+        ds = RandomPatchIDRIDDataset("test", patch_size=args.patched or 500, n_patches=args.random)
+    elif args.patched:
         ds = PatchIDRIDDataset("test", patch_size=args.patched)
     else:
         ds = IDRIDDataset("test")
 
-    assert args.sample <= len(ds), f"Sample {args.sample} does not exist; largest sample is {len(ds)}"
+    print("Using dataset %s" % ds.__class__.__name__)
+
+    if args.sample is None:
+        args.sample = random.randint(0, len(ds))
+    print(f"Displaying sample {args.sample}")
 
     dmeta, di, dm = ds[args.sample]  # get an image and its list of masks from the dataset
     if isinstance(dmeta, (list, tuple)):
