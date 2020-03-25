@@ -30,11 +30,11 @@ def validate(net, dataloader, record_filename=None):
 
     if record_filename:
         if os.path.exists(record_filename):
-            logger.warning(f"Overwriting record log: f{record_filename}")
+            logger.warning(f"Overwriting record log: {record_filename}")
         record_file = open(record_filename, "w")
         f = ("name",
-             "image_idx",
-             "patch_idx",
+             "top_left",
+             "bottom_right",
              *(f"{type}_{i}" for i, type in itertools.product(range(5), ("truth", "prediction")))
              )
         record_writer = csv.DictWriter(record_file, fieldnames=f)
@@ -46,7 +46,7 @@ def validate(net, dataloader, record_filename=None):
     try:
         with torch.no_grad():
             for i, data in enumerate(dataloader):
-                metas, images, masks = data
+                names, coords, images, masks = data
 
                 images = images.to(model_device)
                 masks = masks.to(model_device)
@@ -57,19 +57,17 @@ def validate(net, dataloader, record_filename=None):
                     # at this point, I expect a meta to have 3 elements; if that's not true, the used
                     # dataset is not matching that expectation
                     for i, (truth, prediction) in enumerate(zip(masks, outputs)):
-                        # because the dimensions are flipped and this is an oldschool python list, I have to resort
-                        # to this - I think
-                        name, image_idx, patch_idx = metas[0][i], metas[1][i], metas[2][i]
-                        row = {"name": name,
-                               "image_idx": image_idx.item(),
-                               "patch_idx": patch_idx.item()}
+                        # NOTE: due to dataloader batching/stacking, the dimensions are rotated and items are tensors.
+                        row = {"name": names[i],
+                               "top_left": "%s, %s" % (coords[0][0][i].item(), coords[0][1][i].item()),
+                               "bottom_right": "%s, %s" % (coords[1][0][i].item(), coords[1][1][i].item()),
+                                }
                         for j, (t, p) in enumerate(zip(truth, prediction)):
                             row[f"truth_{j}"] = t.item()
                             row[f"prediction_{j}"] = p.item()
                         record_writer.writerow(row)
 
                 predictions = torch.cat((predictions, outputs))
-                # predictions = torch.cat((predictions, predicted))
                 ground_truth = torch.cat((ground_truth, masks))
 
         # as predictions are still float values (as given by a sigmoid function), round them first

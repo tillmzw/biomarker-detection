@@ -86,7 +86,7 @@ class Trainer():
             training_start = time.time()
             for i, data in enumerate(dataloader):
                 # get the inputs; data is a list of [inputs, filenames, labels]
-                names, images, masks = data
+                names, coords, images, masks = data
 
                 images = images.to(model_device)
                 masks = masks.to(model_device)

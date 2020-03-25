@@ -6,6 +6,7 @@ import math
 import time
 import glob
 import random
+from typing import Tuple
 import torch
 import numpy as np
 import pandas as pd
@@ -97,7 +98,7 @@ class IDRIDDataset(Dataset):
         img_name = self._image_name(idx)
         img = self._load_image(idx).to(device=self._device)
         mask = self._load_masks(idx).to(device=self._device)
-        return img_name, img, mask
+        return img_name, self.transform(img), self.mask_transform(mask)
 
     def __len__(self):
         return len(self._images)
@@ -109,21 +110,18 @@ class IDRIDDataset(Dataset):
         """
         return loader_idx, 0
 
-    def _image_name(self, loader_idx):
-        image_idx, patch_idx = self.image_patch_index(loader_idx)
+    def _image_name(self, image_idx):
         img_path, _ = self._images[image_idx]
         img_name, _ = os.path.splitext(os.path.basename(img_path))
         return img_name
 
-    def _load_image(self, loader_idx):
-        image_idx, patch_idx = self.image_patch_index(loader_idx)
+    def _load_image(self, image_idx):
         img_path, _ = self._images[image_idx]
         img = Image.open(img_path)
-        img = self.transform(img, patch_idx)
+        img = transforms.ToTensor()(img)
         return img
 
-    def _load_masks(self, loader_idx):
-        image_idx, patch_idx = self.image_patch_index(loader_idx)
+    def _load_masks(self, image_idx):
         _, mask_paths = self._images[image_idx]
         masks = [None for _ in range(len(mask_paths))]
         for i, mask_path in enumerate(mask_paths):
@@ -134,7 +132,7 @@ class IDRIDDataset(Dataset):
                 if mask.getbands() != ("P", ):
                     logger.warning(f"Processing mask with non-binary bands: {mask_path} has bands {mask.getbands()}")
                     mask = mask.convert("P")
-                mask = self.mask_transform(mask, patch_idx)
+                mask = transforms.ToTensor()(mask)
                 mask = mask.squeeze()
                 mask[mask > 0] = 1
                 masks[i] = mask
@@ -164,15 +162,11 @@ class IDRIDDataset(Dataset):
         masks = masks.permute(2, 0, 1)  # move mask dimension to front for compat with pytorch
         return masks
 
-    def transform(self, image, patch_idx=None):
-        """Take a PIL image, apply transforms and return a tensor."""
-        t = transforms.Compose((
-            transforms.ToTensor(),
-        ))
-        return t(image)
+    def transform(self, image: torch.Tensor) -> torch.Tensor:
+        return image
 
-    def mask_transform(self, mask, patch_idx=None):
-        return self.transform(mask, patch_idx)
+    def mask_transform(self, mask: torch.Tensor) -> torch.Tensor:
+        return mask
 
 
 class RandomPatchIDRIDDataset(IDRIDDataset):
@@ -184,11 +178,12 @@ class RandomPatchIDRIDDataset(IDRIDDataset):
         self._patch_size = patch_size
         self._n_patches = n_patches
         super().__init__(*args, **kwargs)
+        # TODO: check limiting
 
     def __len__(self):
         return min(self._limit or np.inf, self._n_patches * len(self._images))
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[str, Tuple[Tuple[int, int], Tuple[int, int]], torch.Tensor, torch.Tensor]:
         image_idx = idx // self._n_patches
 
         img_path, _ = self._images[image_idx]
@@ -209,116 +204,19 @@ class RandomPatchIDRIDDataset(IDRIDDataset):
         image_c = tower_cropped[0:3, :, :]
         masks_c = tower_cropped[3:8, :, :]
 
-        # TODO: apply tensor-transformations to image
+        assert image_c[0, :, :].shape == torch.Size((self._patch_size, self._patch_size)), "Bad cropping"
 
-        return img_name, image_c, masks_c
+        image_ct = self.transform(image_c)
+        masks_ct = self.mask_transform(masks_c)
 
-    @property
-    def _image_dims(self):
-        return 4288, 2848
-
-
-class PatchIDRIDDataset(IDRIDDataset):
-    # Transform single images into multiple patches
-    def __init__(self, *args, patch_size=256, **kwargs):
-        """
-        Split every image from disk into `patch_size`**2 sized chunks and consider them independent samples.
-        """
-        self._patch_size = patch_size
-        super().__init__(*args, **kwargs)
-
-    def _limit_dataset(self):
-        # Note: further limiting is done in __len__ and __getitem__
-        # TODO: This might over-limiting: _limit is probably << _patch_number, and thus n_images 1
-        n_images = np.max(1, self._limit // self._patch_number)
-        logger.debug(f"Limiting number of images in {self._itype} to {n_images} (additional patching limits apply)")
-        self._images = random.sample(self._images, n_images)
+        return img_name, ((row_start, col_start), (row_end, col_end)), image_ct, masks_ct
 
     @property
     def _image_dims(self):
         return 4288, 2848
 
-    @property
-    def _patch_number(self):
-        # FIXME: this depends on all images having the same size
-        w, h = self._image_dims
-        return (w // self._patch_size) * (h // self._patch_size)
 
-    def image_patch_index(self, loader_idx):
-        """
-        Return a tuple consisting of the image index and the patch index for 
-        this respective loader index.
-        """
-        image_idx = loader_idx // self._patch_number
-        patch_idx = loader_idx % self._patch_number
-
-        logger.debug(f"Loader index {loader_idx} --> image {image_idx}, patch {patch_idx}")
-        return image_idx, patch_idx
-
-    def _get_bounding_box(self, patch_idx):
-        """
-        Returns the bounding box for a patch_idx in its image as (left, upper, right, lower)
-        """
-        w, h = self._image_dims
-        # FIXME: biased against "end" of image - might never be included!
-        patches_w = w // self._patch_size
-        patches_h = h // self._patch_size
-
-        logger.debug(f"Image with dimensions {w}x{h} has room for {patches_w} x {patches_h} patches")
-        w_idx = patch_idx % patches_w
-        h_idx = patch_idx // (patches_h + 1)
-
-        w0 = w_idx * self._patch_size
-        w1 = w0 + self._patch_size
-        h0 = h_idx * self._patch_size
-        h1 = h0 + self._patch_size
-
-        return w0, h0, w1, h1
-
-    def __len__(self):
-        if self._limit:
-            max_len = len(self._images) * self._patch_number
-            real_len = np.min((max_len, self._limit))
-            logger.debug(f"Limiting number of patches to {real_len} with {len(self._images)} images")
-            return real_len
-        else:
-            return len(self._images) * self._patch_number
-
-    def __getitem__(self, idx):
-        if self._limit and idx > self._limit:
-            raise IndexError
-        name, image, mask = super().__getitem__(idx)
-        image_idx, patch_idx = self.image_patch_index(idx)
-        return (name, image_idx, patch_idx), image, mask
-
-    def transform(self, image, patch_idx):
-        # crop image first
-        assert image.size == self._image_dims, f"Bad image size: {image.size}"
-
-        bbox = self._get_bounding_box(patch_idx)
-        crop = image.crop(bbox)
-
-        # follow up with actual transformations
-        t = transforms.Compose((
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ))
-        return t(crop)
-
-    def mask_transform(self, mask, patch_idx=None):
-        assert mask.size == self._image_dims, f"Bad mask size: {mask.size}"
-
-        bbox = self._get_bounding_box(patch_idx)
-        crop = mask.crop(bbox)
-        t = transforms.Compose((
-            transforms.ToTensor(),
-            # TODO: confirm: masks don't need normalization
-            #transforms.Normalize(mean=[0.5], std=[0.5])
-        ))
-        return t(crop)
-
-
-class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
+class BinaryPatchIDRIDDataset(RandomPatchIDRIDDataset):
     def __init__(self, *args, presence_threshold=100, **kwargs):
         """
         Dataset that splits images into even patches (`patch_size`**2 in size) and calculates
@@ -329,44 +227,18 @@ class BinaryPatchIDRIDDataset(PatchIDRIDDataset):
         super().__init__(*args, **kwargs)
         self._presence_threshold = presence_threshold
 
-    def __getitem__(self, idx):
-        img_meta, img, masks = super().__getitem__(idx)
-        # TODO: There is certainly a faster way to do this that is still readable
-        sum_masks = [torch.sum(mask[mask > 0]) for mask in masks]
+    def transform(self, image: torch.Tensor) -> torch.Tensor:
+        t = transforms.Compose((
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ))
+        return t(image)
+
+    def mask_transform(self, mask: torch.Tensor) -> torch.Tensor:
+        sum_masks = [torch.sum(m[m > 0]) for m in mask]
         # without using ().value, this would be a list of 1-element 1-d tensors
         boolean_mask = [(mask > self._presence_threshold).item() for mask in sum_masks]
         binary_mask = [{False: 0, True: 1}[m] for m in boolean_mask]
-        return img_meta, img, torch.tensor(binary_mask, dtype=torch.float)
-
-    def transform(self, image, patch_idx):
-        assert image.size == self._image_dims, f"Bad image size: {image.size}"
-
-        bbox = self._get_bounding_box(patch_idx)
-        crop = image.crop(bbox)
-
-        # follow up with actual transformations
-        # Note: Since the mask here is binary, any transformations performed on the image
-        #       will not affect the mask's output which is 1 or 0 anyway!
-        t = transforms.Compose((
-            transforms.RandomHorizontalFlip(0.5),
-            transforms.RandomVerticalFlip(0.5),
-            transforms.RandomRotation(0.2),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ))
-        return t(crop)
-
-    def mask_transform(self, mask, patch_idx=None):
-        assert mask.size == self._image_dims, f"Bad mask size: {mask.size}"
-
-        bbox = self._get_bounding_box(patch_idx)
-        crop = mask.crop(bbox)
-        t = transforms.Compose((
-            transforms.ToTensor(),
-            # TODO: confirm: masks don't need normalization
-            #transforms.Normalize(mean=[0.5], std=[0.5])
-        ))
-        return t(crop)
+        return torch.tensor(binary_mask, dtype=torch.float)
 
 
 if __name__ == "__main__":
@@ -380,14 +252,12 @@ if __name__ == "__main__":
 
     p = argparse.ArgumentParser()
     p.add_argument('sample', nargs="?", default=None, help="Display this sample", type=int)
-    p.add_argument('-p', '--patched', nargs="?", default=None, const=500, type=int, help="Use patched dataloader with this size")
+    p.add_argument('-p', '--patch-size', default=500, type=int, help="Use patches of this size")
     p.add_argument('-r', '--random', nargs="?", default=None, const=100, type=int, help="Use random patch dataloader with this many patches")
     args = p.parse_args()
 
     if args.random:
-        ds = RandomPatchIDRIDDataset("test", patch_size=args.patched or 500, n_patches=args.random)
-    elif args.patched:
-        ds = PatchIDRIDDataset("test", patch_size=args.patched)
+        ds = RandomPatchIDRIDDataset("test", patch_size=args.patch_size, n_patches=args.random)
     else:
         ds = IDRIDDataset("test")
 
@@ -397,12 +267,9 @@ if __name__ == "__main__":
         args.sample = random.randint(0, len(ds))
     print(f"Displaying sample {args.sample}")
 
-    dmeta, di, dm = ds[args.sample]  # get an image and its list of masks from the dataset
-    if isinstance(dmeta, (list, tuple)):
-        dname = dmeta[0]
-    else:
-        dname = dmeta
+    dname, coords, di, dm = ds[args.sample]  # get an image and its list of masks from the dataset
     print(dname)
+    print("Sample taken from coordinates %s" % [",".join(str(c) for c in coords)])
     di = di.permute(1, 2, 0)  # reorder dims
 
     nrows = math.floor(math.sqrt(len(ds.CLASSES) + 1))
