@@ -117,15 +117,18 @@ class Trainer():
             if validation_dataloader:
                 validation_start = time.time()
                 try:
-                    validation_acc, confusion = validator.validate(model, validation_dataloader)
+                    validation_acc, avg_precision, confusion = validator.validate(model, validation_dataloader)
                     # adapt the learning rate
                     lr_sched.step(validation_acc)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
                 else:
-                    wandb.log({"validation_accuracy": validation_acc, "lr": self.get_lr(optimizer)}, step=step)
-                    logger.info("Validation during training at step %d: %05.2f%%" % (step, validation_acc))
+                    wandb.log({"validation_accuracy": validation_acc,
+                               "validation_avg_precision": avg_precision,
+                               "lr": self.get_lr(optimizer)
+                               }, step=step)
+                    logger.info(f"Validation during training at step {step}: {validation_acc:.2f}% accuracy, {avg_precision:.2f} avg precision")
                     vt = time.time() - validation_start
                     vtt = vt // 60 + ((vt % 60) / 60)
                     # normalize by number of samples, i.e. normalize to seconds per image

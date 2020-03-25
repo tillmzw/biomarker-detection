@@ -7,7 +7,7 @@ import itertools
 import torch
 import numpy as np
 import pandas as pd
-from sklearn.metrics import cohen_kappa_score, multilabel_confusion_matrix
+from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +73,22 @@ def validate(net, dataloader, record_filename=None):
                 ground_truth = torch.cat((ground_truth, masks))
 
         # as predictions are still float values (as given by a sigmoid function), round them first
-        predictions = torch.round(predictions)
+        predictions_rounded = torch.round(predictions)
         # .eq() does element-wise equality checks
         # Note: .eq() != .equal()
-        overlap = torch.eq(ground_truth, predictions)
+        overlap = torch.eq(ground_truth, predictions_rounded)
         # accuracy: fraction of matching predictions over total item number
         # `.item()` on a single-item tensor to extract the value
         acc = torch.sum(overlap).item() / ground_truth.numel() * 100
 
-        confusion = multilabel_confusion_matrix(y_true=ground_truth.to("cpu"), y_pred=predictions.to("cpu"))
+        confusion = multilabel_confusion_matrix(y_true=ground_truth.to("cpu"), y_pred=predictions_rounded.to("cpu"))
 
-        return acc, confusion
+        # calculate average precision scores
+        # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html
+        # FIXME: this returns `nan` (as guard against division by zero) if all ground_truths are zero.
+        avg_precision = average_precision_score(y_true=ground_truth.to("cpu"), y_score=predictions.to("cpu"))
+
+        return acc, avg_precision, confusion
 
     finally:
         if record_file:
