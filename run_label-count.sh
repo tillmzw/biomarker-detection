@@ -4,7 +4,7 @@
 #SBATCH --mail-type=end,fail
 #SBATCH --mail-user="till.meyerzuwestram@artorg.unibe.ch"
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=10G
+#SBATCH --mem=40G
 #SBATCH --time=6:00:0
 #SBATCH --partition=gpu
 
