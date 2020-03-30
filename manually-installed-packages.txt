@@ -13,3 +13,4 @@ sklearn
 numpydoc
 wandb
 tabulate
+tqdm
