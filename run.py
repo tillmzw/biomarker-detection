@@ -43,8 +43,9 @@ if __name__ == "__main__":
     parser.add_argument("-L", "--validation-limit", type=float, default=None, help="During validation, limit validation set to this number of samples; can be an integer (number of samples) or a float (fraction of samples). Requires --validation")
     parser.add_argument("-S", "--scratch", default=None, help="Directory to place additional outputs in")
     parser.add_argument("-M", "--mismatches", action="store_true", default=False, help="Record mismatches between predictions and ground truth; requires scratch directory. Slows operation!")
-    parser.add_argument("-p", "--patch-size", type=int, default=256, help="Split images into chunks of this size")
-    parser.add_argument("-P", "--presence-threshold", type=int, default=100, help="Require this many pixels of a class in a sample to consider it positive")
+    parser.add_argument("-p", "--patch-size", type=int, default=500, help="Split images into chunks of this size")
+    parser.add_argument("-P", "--presence-threshold", type=int, default=10, help="Require this many pixels of a class in a sample to consider it positive")
+    parser.add_argument("-n", "--patch-number", type=int, default=100, help="Patch number per image")
     parser.add_argument("--log", default=None, help="Write all log file to this file")
     parser.add_argument("-N", "--no-wandb", action="store_true", default=False, help="Dont send results to wandb")
     # TODO: support >1 GPU
@@ -75,6 +76,8 @@ if __name__ == "__main__":
     if args.no_wandb:
         os.environ["WANDB_MODE"] = "dryrun"
     wandb.init(**wandb_cfg)
+    wandb.config.update({"patch_size": args.patch_size,
+                         "presence_threshold": args.presence_threshold})
 
     logger.info("Command line arguments:")
     for arg in vars(args):
@@ -95,7 +98,12 @@ if __name__ == "__main__":
     data_dir = args.data_dir
 
     if args.validate:
-        testset = BinaryPatchIDRIDDataset("test", path=data_dir, limit=args.validation_limit, patch_size=args.patch_size, presence_threshold=args.presence_threshold)
+        testset = BinaryPatchIDRIDDataset("test",
+                                          path=data_dir,
+                                          limit=args.validation_limit,
+                                          patch_size=args.patch_size,
+                                          n_patches=args.patch_number,
+                                          presence_threshold=args.presence_threshold)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
         testloader = None
@@ -103,7 +111,12 @@ if __name__ == "__main__":
     if args.train:
         logger.info("Starting training")
 
-        trainset = BinaryPatchIDRIDDataset("train", path=data_dir, limit=args.limit, patch_size=args.patch_size, presence_threshold=args.presence_threshold)
+        trainset = BinaryPatchIDRIDDataset("train",
+                                           path=data_dir,
+                                           limit=args.limit,
+                                           patch_size=args.patch_size,
+                                           n_patches=args.patch_number,
+                                           presence_threshold=args.presence_threshold)
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 
         trainer = training.AdamTrainer(epochs=args.epochs)
