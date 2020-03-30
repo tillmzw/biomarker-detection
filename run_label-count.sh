@@ -39,9 +39,6 @@ echo -e "\t$TMPDIR"
 echo -e "======================================================"
 
 (
-	# copy data on-demand to local scratch fs, as defined in $TMPDIR
-	echo "Copying data from $BASEDIR/data to $TMPDIR..."
-	time rsync -a --stats $BASEDIR/data $TMPDIR | tee $WORKDIR/rsync-log.txt
 	cd $BASEDIR || exit
 	pip install --user --upgrade -r requirements.txt > /dev/null
   ./tools/label-count.py \
