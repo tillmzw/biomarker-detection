@@ -1,10 +1,11 @@
-matplotlib==3.1.2
-numpy==1.18.1
+matplotlib==3.2.1
+numpy==1.18.2
 numpydoc==0.9.2
-pandas==0.25.3
+pandas==1.0.3
 sklearn==0.0
-tabulate==0.8.6
+tabulate==0.8.7
 torch==1.4.0
 torchvision==0.5.0
 torchviz==0.0.1
-wandb==0.8.29
+tqdm==4.44.1
+wandb==0.8.31
