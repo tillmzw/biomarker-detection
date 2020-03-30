@@ -3,10 +3,14 @@
 import sys
 import os
 import argparse
+import multiprocessing
 from tqdm import tqdm
 import torch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dataset import BinaryPatchIDRIDDataset
+
+CPU_COUNT = multiprocessing.cpu_count()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -42,12 +46,14 @@ if __name__ == "__main__":
     total = sum(map(lambda i: len(i), datasets))
 
     for ds in tqdm(datasets, unit="dataset"):
-        for data in tqdm(ds, unit="image"):
+        # using a dataloader here speeds everything up due to the multiprocessing capabilities!
+        dl = torch.utils.data.dataloader.DataLoader(ds, num_workers=CPU_COUNT, batch_size=1)
+        for data in tqdm(dl, unit="image"):
             _, _, _, masks = data
-
+            # since we use batch_size = 1, we can flatten here (2nd dim empty due to single sample)
+            masks = masks.flatten()
             for k, (prev, this) in enumerate(zip(counts, masks)):
                 counts[k] = prev + this
-
         print()
 
     header_fmt  = "{label:^15} {abs_c:>8} {prop_c:>12} {rel_c:>12}"
