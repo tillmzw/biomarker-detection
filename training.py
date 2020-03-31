@@ -102,7 +102,8 @@ class Trainer():
                 loss.backward()
                 optimizer.step()
 
-                avg_precision = average_precision_score(y_true=masks.detach().numpy(), y_score=outputs.detach().numpy())
+                avg_precision = average_precision_score(y_true=masks.detach().to("cpu").numpy(),
+                                                        y_score=outputs.detach().to("cpu").numpy())
 
                 step += 1
                 wandb.log({"training_loss": loss.item(), "training_avg_precision": avg_precision}, step=step)
