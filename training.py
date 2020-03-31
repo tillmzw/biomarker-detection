@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import wandb
+from sklearn.metrics import average_precision_score
+
 import validator
 import utils
 
@@ -100,8 +102,10 @@ class Trainer():
                 loss.backward()
                 optimizer.step()
 
+                avg_precision = average_precision_score(y_true=masks.detach().numpy(), y_score=outputs.detach().numpy())
+
                 step += 1
-                wandb.log({"training_loss": loss.item()}, step=step)
+                wandb.log({"training_loss": loss.item(), "training_avg_precision": avg_precision}, step=step)
 
             # seconds -> float
             tt = time.time() - training_start
