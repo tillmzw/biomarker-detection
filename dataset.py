@@ -227,6 +227,18 @@ class BinaryPatchIDRIDDataset(RandomPatchIDRIDDataset):
         super().__init__(*args, **kwargs)
         self._presence_threshold = presence_threshold
 
+    def class_weights(self):
+        if self._presence_threshold == 10 and self._patch_size == 500 and self._n_patches >= 100:
+            # these values are empiric values from `./tools/label-count.py`
+            # NOTE: this list is inverted, i.e. rare labels have higher weight
+            return torch.tensor((0.6825, 0.743, 0.694, 0.963, 0.917))
+        else:
+            logger.warning(f"No empiric class weights available for configuration "
+                           f" -p [patch size] {self._patch_size},"
+                           f" -P [presence threshold] {self._presence_threshold},"
+                           f" -n [patch number] {self._n_patches}")
+            return torch.tensor((1, 1, 1, 1, 1))
+
     def transform(self, image: torch.Tensor) -> torch.Tensor:
         t = transforms.Compose((
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
