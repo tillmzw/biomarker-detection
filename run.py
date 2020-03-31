@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument("-M", "--mismatches", action="store_true", default=False, help="Record mismatches between predictions and ground truth; requires scratch directory. Slows operation!")
     parser.add_argument("-p", "--patch-size", type=int, default=500, help="Split images into chunks of this size")
     parser.add_argument("-P", "--presence-threshold", type=int, default=10, help="Require this many pixels of a class in a sample to consider it positive")
-    parser.add_argument("-n", "--patch-number", type=int, default=100, help="Patch number per image")
+    parser.add_argument("-n", "--patch-number", type=int, default=50, help="Patch number per image")
     parser.add_argument("--log", default=None, help="Write all log file to this file")
     parser.add_argument("-N", "--no-wandb", action="store_true", default=False, help="Dont send results to wandb")
     # TODO: support >1 GPU
