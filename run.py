@@ -97,6 +97,13 @@ if __name__ == "__main__":
     net.to(torch.device(args.device))
     data_dir = args.data_dir
 
+    """
+    From the pytorch doc: https://pytorch.org/docs/stable/data.html#single-and-multi-process-data-loading
+    It is generally not recommended to return CUDA tensors in multi-process loading because of many subtleties in using 
+    CUDA and sharing CUDA tensors in multiprocessing (see CUDA in multiprocessing). Instead, we recommend using automatic 
+    memory pinning (i.e., setting pin_memory=True), which enables fast data transfer to CUDA-enabled GPUs.
+    """
+
     if args.validate:
         testset = BinaryPatchIDRIDDataset("test",
                                           path=data_dir,
@@ -104,8 +111,8 @@ if __name__ == "__main__":
                                           patch_size=args.patch_size,
                                           n_patches=args.patch_number,
                                           presence_threshold=args.presence_threshold,
-                                          device=args.device)
-        testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
+                                          device="cpu")  # CPU as CUDA is not multiprocessing compatible
+        testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True, pin_memory=True)
     else:
         testloader = None
 
@@ -118,8 +125,8 @@ if __name__ == "__main__":
                                            patch_size=args.patch_size,
                                            n_patches=args.patch_number,
                                            presence_threshold=args.presence_threshold,
-                                           device=args.device)
-        trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
+                                           device="cpu")  # CPU as CUDA is not multiprocessing compatible
+        trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True, pin_memory=True)
 
         trainer = training.AdamTrainer(epochs=args.epochs)
         trainer.train(net, trainloader, args.state, validation_dataloader=testloader)

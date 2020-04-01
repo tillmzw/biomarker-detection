@@ -26,6 +26,8 @@ class IDRIDDataset(Dataset):
     CLASSES = ("Microaneurysms", "Haemorrhages", "Hard Exudates", "Soft Exudates", "Optic Disc")
 
     def __init__(self, itype, path=DEFAULT_DATA_DIR, limit=None, device="cpu"):
+        # TODO: in some cases we want to move tensors to CUDA, but in most cases we must retain them on the CPU
+        #        -  organize!
         self._itype = itype  # for logging purposes
         self._device = torch.device(device)
         self._images = self._extract_image_paths(itype, path)
@@ -118,7 +120,7 @@ class IDRIDDataset(Dataset):
     def _load_image(self, image_idx):
         img_path, _ = self._images[image_idx]
         img = Image.open(img_path)
-        img = transforms.ToTensor()(img).to(device=self._device)
+        img = transforms.ToTensor()(img).to(device=self._device, non_blocking=True)
         return img
 
     def _load_masks(self, image_idx):
@@ -132,7 +134,7 @@ class IDRIDDataset(Dataset):
                 if mask.getbands() != ("P", ):
                     logger.warning(f"Processing mask with non-binary bands: {mask_path} has bands {mask.getbands()}")
                     mask = mask.convert("P")
-                mask = transforms.ToTensor()(mask).to(device=self._device)
+                mask = transforms.ToTensor()(mask).to(device=self._device)  # can be blocking, since we work on them any way
                 mask = mask.squeeze()
                 mask[mask > 0] = 1
                 masks[i] = mask
