@@ -103,7 +103,8 @@ if __name__ == "__main__":
                                           limit=args.validation_limit,
                                           patch_size=args.patch_size,
                                           n_patches=args.patch_number,
-                                          presence_threshold=args.presence_threshold)
+                                          presence_threshold=args.presence_threshold,
+                                          device=args.device)
         testloader = DataLoader(testset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
     else:
         testloader = None
@@ -116,7 +117,8 @@ if __name__ == "__main__":
                                            limit=args.limit,
                                            patch_size=args.patch_size,
                                            n_patches=args.patch_number,
-                                           presence_threshold=args.presence_threshold)
+                                           presence_threshold=args.presence_threshold,
+                                           device=args.device)
         trainloader = DataLoader(trainset, batch_size=args.batch, num_workers=CPU_COUNT, shuffle=True)
 
         trainer = training.AdamTrainer(epochs=args.epochs)

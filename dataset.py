@@ -118,7 +118,7 @@ class IDRIDDataset(Dataset):
     def _load_image(self, image_idx):
         img_path, _ = self._images[image_idx]
         img = Image.open(img_path)
-        img = transforms.ToTensor()(img)
+        img = transforms.ToTensor()(img).to(device=self._device)
         return img
 
     def _load_masks(self, image_idx):
@@ -132,7 +132,7 @@ class IDRIDDataset(Dataset):
                 if mask.getbands() != ("P", ):
                     logger.warning(f"Processing mask with non-binary bands: {mask_path} has bands {mask.getbands()}")
                     mask = mask.convert("P")
-                mask = transforms.ToTensor()(mask)
+                mask = transforms.ToTensor()(mask).to(device=self._device)
                 mask = mask.squeeze()
                 mask[mask > 0] = 1
                 masks[i] = mask
