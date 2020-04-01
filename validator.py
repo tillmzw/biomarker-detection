@@ -12,7 +12,7 @@ from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
 logger = logging.getLogger(__name__)
 
 
-def validate(net, dataloader, record_filename=None):
+def validate(net, dataloader, record_filename=None, loss_func=None):
     """Count the number of correct and incorrect predictions made by `net` on `dataloader`.
     Returns a percentage accuracy, Cohen's Kappa and a confusion matrix.
     """
@@ -79,6 +79,11 @@ def validate(net, dataloader, record_filename=None):
         # `.item()` on a single-item tensor to extract the value
         acc = torch.sum(overlap).item() / ground_truth.numel() * 100
 
+        if loss_func:
+            loss = loss_func(predictions, ground_truth)
+        else:
+            loss = None
+
         confusion = multilabel_confusion_matrix(y_true=ground_truth.to("cpu"), y_pred=predictions_rounded.to("cpu"))
 
         # calculate average precision scores
@@ -86,7 +91,7 @@ def validate(net, dataloader, record_filename=None):
         # FIXME: this returns `nan` (as guard against division by zero) if all ground_truths are zero.
         avg_precision = average_precision_score(y_true=ground_truth.to("cpu"), y_score=predictions.to("cpu"))
 
-        return acc, avg_precision, confusion
+        return acc, loss, avg_precision, confusion
 
     finally:
         if record_file:

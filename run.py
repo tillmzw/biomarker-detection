@@ -141,7 +141,7 @@ if __name__ == "__main__":
     if args.validate:
         # mismatch record file
         mmr = os.path.join(args.scratch, "mismatches.csv") if (args.scratch and args.mismatches) else None
-        acc, avg_precision, confusion = validate(net, testloader, record_filename=mmr)
+        acc, loss, avg_precision, confusion = validate(net, testloader, record_filename=mmr)
         # log the confusion matrix
         logger.info(f"Final validation run: {acc:.2f}% accuracy, {avg_precision:.2f}")
 

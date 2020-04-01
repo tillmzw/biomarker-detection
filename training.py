@@ -26,6 +26,8 @@ class Trainer():
         """
         super().__init__()
         self._epochs = epochs
+        self._es_best_loss = np.inf
+        self._es_waiting = 0
 
     def get_optimizer(self, model):
         raise NotImplementedError
@@ -42,6 +44,19 @@ class Trainer():
         if len(lrs) > 1:
             logger.debug(f"Averaging learning rates - have {len(lrs)} entries")
         return np.mean(lrs)
+
+    def should_early_stop(self, loss: float, delta=0.0, patience=5) -> bool:
+        if loss < (self._es_best_loss - delta):
+            # new loss is better than previous loss
+            self._es_best_loss = loss
+            self._es_waiting = 0
+        else:
+            # new loss is equal or worse than previous loss
+            self._es_waiting += 1
+            logger.info(f"New loss ({loss:.3f}) is equal/worse than previous one ({self._es_best_loss:.3f}); "
+                        f"waiting for {self._es_waiting}/{patience} epochs until recommending early stop")
+
+        return self._es_waiting > patience
 
     def train(self, model, dataloader, state_file=None, validation_dataloader=None):
         """
@@ -122,7 +137,7 @@ class Trainer():
             if validation_dataloader:
                 validation_start = time.time()
                 try:
-                    validation_acc, avg_precision, confusion = validator.validate(model, validation_dataloader)
+                    validation_acc, validation_loss, avg_precision, confusion = validator.validate(model, validation_dataloader, loss_func=loss_func)
                     # adapt the learning rate
                     lr_sched.step(validation_acc)
                 except Exception as e:
@@ -130,6 +145,7 @@ class Trainer():
                     logger.exception(e)
                 else:
                     wandb.log({"validation_accuracy": validation_acc,
+                               "validation_loss": validation_loss,
                                "validation_avg_precision": avg_precision,
                                "lr": self.get_lr(optimizer)
                                }, step=step)
@@ -147,6 +163,10 @@ class Trainer():
                     plot = utils.plot_confusion_matrix(confusion)
                     implot = utils.plot_to_pil(plot)
                     wandb.log({"epoch_training_confusion_matrix": wandb.Image(implot)}, step=step)
+
+                    if self.should_early_stop(validation_loss.item()):
+                        logger.warning("Engaging early stopping!")
+                        break
 
             if state_file:
                 # save intermediate model
