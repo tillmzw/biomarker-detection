@@ -34,7 +34,7 @@ class Trainer():
         return nn.BCEWithLogitsLoss(weight=weights)
 
     def get_lr_scheduler(self, optimizer):
-        return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=3)
+        return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=6)
 
     def get_lr(self, optimizer):
         # borrowed from torch.optim.lr_scheduler
