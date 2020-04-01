@@ -45,7 +45,7 @@ class Trainer():
             logger.debug(f"Averaging learning rates - have {len(lrs)} entries")
         return np.mean(lrs)
 
-    def should_early_stop(self, loss: float, delta=0.0, patience=5) -> bool:
+    def should_early_stop(self, loss: float, delta=0.0, patience=3) -> bool:
         if loss < (self._es_best_loss - delta):
             # new loss is better than previous loss
             self._es_best_loss = loss
