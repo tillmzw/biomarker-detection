@@ -43,7 +43,7 @@ class IDRIDDataset(Dataset):
         else:
             self._limit = None
 
-        logger.info(f"Using {len(self._images)} samples from {n_images_unlimited} available images for type {self._itype}")
+        logger.info(f"Using {len(self)} samples from {n_images_unlimited} available images for type {self._itype}")
 
     def _limit_dataset(self):
         # Move this to a method to allow children to override this.
