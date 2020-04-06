@@ -43,7 +43,7 @@ class IDRIDDataset(Dataset):
         else:
             self._limit = None
 
-        logger.info(f"Using {len(self._images)} of {n_images_unlimited} available images for type {self._itype}")
+        logger.info(f"Using {len(self._images)} samples from {n_images_unlimited} available images for type {self._itype}")
 
     def _limit_dataset(self):
         # Move this to a method to allow children to override this.
@@ -180,7 +180,12 @@ class RandomPatchIDRIDDataset(IDRIDDataset):
         self._patch_size = patch_size
         self._n_patches = n_patches
         super().__init__(*args, **kwargs)
-        # TODO: check limiting
+
+    def _limit_dataset(self):
+        # prefer to take one sample per image instead of 10 samples per image if limit is 10
+        # if limit > len, we limit the dataset in __len__
+        if self._limit < len(self._images):
+            self._images = random.sample(self._images, self._limit)
 
     def __len__(self):
         return min(self._limit or np.inf, self._n_patches * len(self._images))
