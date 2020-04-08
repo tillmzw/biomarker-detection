@@ -3,11 +3,15 @@
 import os
 import logging
 import math
-import time
+import datetime
 import glob
 import random
 from typing import Tuple
+import utils
+
 import torch
+from tqdm import tqdm
+import h5py
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -17,6 +21,7 @@ from sklearn.utils import class_weight
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 PARENT_DIR = os.path.relpath(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DATA_DIR = os.path.join(PARENT_DIR, "data")
 
@@ -28,9 +33,10 @@ class IDRIDDataset(Dataset):
     def __init__(self, itype, path=DEFAULT_DATA_DIR, limit=None, device="cpu"):
         # TODO: in some cases we want to move tensors to CUDA, but in most cases we must retain them on the CPU
         #        -  organize!
-        self._itype = itype  # for logging purposes
+        self._itype = itype
+        self._path = path
         self._device = torch.device(device)
-        self._images = self._extract_image_paths(itype, path)
+        self._images = self._extract_image_paths()
         n_images_unlimited = len(self._images)
         if limit is not None:
             if limit < 1:
@@ -50,18 +56,18 @@ class IDRIDDataset(Dataset):
         logger.debug(f"Limiting number of images in {self._itype} to {self._limit}")
         self._images = random.sample(self._images, self._limit)
 
-    def _extract_image_paths(self, itype, path):
-        if itype == "train":
+    def _extract_image_paths(self):
+        if self._itype == "train":
             itype_dir = "a. Training Set"
-        elif itype == "test":
+        elif self._itype == "test":
             itype_dir = "b. Testing Set"
         else:
-            raise RuntimeError(f"Don't know how to find image type: {itype}")
+            raise RuntimeError(f"Don't know how to find image type: {self._itype}")
 
-        image_dir = os.path.join(path, "1. Original Images", itype_dir)
-        truth_dir = os.path.join(path, "2. All Segmentation Groundtruths", itype_dir)
-        assert os.path.isdir(image_dir), f"Bad folder structure in {path}: {image_dir} doesn't exist"
-        assert os.path.isdir(truth_dir), f"Bad folder structure in {path}: {truth_dir} doesn't exist"
+        image_dir = os.path.join(self._path, "1. Original Images", itype_dir)
+        truth_dir = os.path.join(self._path, "2. All Segmentation Groundtruths", itype_dir)
+        assert os.path.isdir(image_dir), f"Bad folder structure in {self._path}: {image_dir} doesn't exist"
+        assert os.path.isdir(truth_dir), f"Bad folder structure in {self._path}: {truth_dir} doesn't exist"
 
         class_dir_names = [f"{prefix}. {cls}" for prefix, cls in zip(range(1, 6), self.CLASSES)]
         class_dir_paths = [os.path.join(truth_dir, cls) for cls in class_dir_names]
@@ -74,7 +80,7 @@ class IDRIDDataset(Dataset):
         )
         """
         images = [
-            (os.path.join(image_dir, image), self._mask_paths_for_image(image, class_dir_paths)) 
+            (os.path.join(image_dir, image), self._mask_paths_for_image(image, class_dir_paths))
             for image in os.listdir(image_dir) if os.path.isfile(os.path.join(image_dir, image))
         ]
 
@@ -117,13 +123,13 @@ class IDRIDDataset(Dataset):
         img_name, _ = os.path.splitext(os.path.basename(img_path))
         return img_name
 
-    def _load_image(self, image_idx):
+    def _load_image(self, image_idx) -> torch.Tensor:
         img_path, _ = self._images[image_idx]
         img = Image.open(img_path)
         img = transforms.ToTensor()(img).to(device=self._device, non_blocking=True)
         return img
 
-    def _load_masks(self, image_idx):
+    def _load_masks(self, image_idx) -> torch.Tensor:
         _, mask_paths = self._images[image_idx]
         masks = [None for _ in range(len(mask_paths))]
         for i, mask_path in enumerate(mask_paths):
@@ -170,8 +176,139 @@ class IDRIDDataset(Dataset):
     def mask_transform(self, mask: torch.Tensor) -> torch.Tensor:
         return mask
 
+    @property
+    def _image_dims(self):
+        return 4288, 2848
 
-class RandomPatchIDRIDDataset(IDRIDDataset):
+    @property
+    def _sample_dims(self):
+        return self._image_dims
+
+    @property
+    def _mask_dims(self):
+        return self._sample_dims
+
+
+class CachedIDRIDDataset(IDRIDDataset):
+
+    GROUP_IMAGES = "images"
+    GROUP_MASKS = "masks"
+
+    def __init__(self, *args, cache_file_name="cache.hdf5", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(f"cache.{self._itype}")
+        self._cache_file_name = os.path.join(self._path, cache_file_name)
+        self._cache_fh = None
+        self._cache = None
+
+    def __del__(self):
+        if self._cache_fh:
+            self._cache_fh.close()
+            self.logger.info(f"Closed cache at {self._cache_file_name}")
+
+    def _load_image(self, image_idx) -> torch.Tensor:
+        self.logger.debug(f"Retrieving image {image_idx}")
+        img = self._cache_retrieve(self.GROUP_IMAGES, image_idx)
+        # TODO: is this a valid way to determine whether this attribute has been set?
+        if img is not None and img.max() > 0:
+            return torch.tensor(img).to(device=self._device, non_blocking=True, dtype=torch.float32)
+        else:
+            return super()._load_image(image_idx)
+
+    def _load_masks(self, image_idx) -> torch.Tensor:
+        self.logger.debug(f"Retrieving masks {image_idx}")
+        mask = self._cache_retrieve(self.GROUP_MASKS, image_idx)
+        # TODO: is this a valid way to determine whether this attribute has been set?
+        if mask is not None and mask.max() > 0:
+            return torch.tensor(mask).to(device=self._device, non_blocking=True, dtype=torch.float32)
+        else:
+            return super()._load_masks(image_idx)
+
+    def _require_cache(self):
+        if self._cache_fh is None:
+            self._cache_fh = h5py.File(self._cache_file_name, "r")
+
+        if self._itype not in self._cache_fh.keys():
+            raise RuntimeError(f"Cache not initialized")
+
+        self._cache = self._cache_fh[self._itype]
+
+        for dataset in (self.GROUP_IMAGES, self.GROUP_MASKS):
+            if dataset not in self._cache.keys():
+                raise RuntimeError(f"Dataset {dataset} is not initialized.")
+
+        self.logger.info(f"Loaded cache at {self._cache_file_name}")
+
+    def _cache_retrieve(self, group, idx):
+        if self._cache is None:
+            self._require_cache()
+
+        self.logger.debug(f"Retrieving item from group {group} for index {idx}")
+        try:
+            return self._cache[group][idx]
+        except KeyError:
+            self.logger.warning(f"No cache hit at {group} for index {idx}")
+            return None
+
+    def initialize(self, force=False):
+        self.logger.info(f"Starting initialization of cache at {self._cache_file_name} with {self.__len__()} items")
+        assert self._cache_fh is None, f"Cache file handle must be unused when initializing"
+        """
+        # TODO: Create a user block in the HDF5 file - impossible to do with this library, and manually doing it
+                corrupts the file signature (probably because the user block is not at the very beginning of the file)
+        USERBLOCK_SIZE = 512
+        if not os.path.isfile(self._cache_file_name):
+            # create the file with a user block first.
+            self.logger.info("Creating new HDF5 file with user block")
+            with open(self._cache_file_name, "w") as f:
+                f.seek(0)
+                text = f"Created by version: {utils.git_hash()}\n Date: {datetime.datetime.now()}\n"
+                contents = text.ljust(USERBLOCK_SIZE, "\0")
+                assert len(contents) == USERBLOCK_SIZE, "Invalid user block size for HDF5 file"
+                f.writelines(contents)
+        """
+        self._cache_fh = h5py.File(self._cache_file_name, "a", userblock_size=0)
+
+        self.logger.debug(f"Creating root group {self._itype}")
+        self._cache = self._cache_fh.require_group(self._itype)
+
+        # TODO: dynamically calculate the shape, or dont duplicate child classes here
+        img_shape = (self.__len__(), 3) + self._sample_dims[::-1]  # reverse order of dimensions here
+        mask_shape = (self.__len__(), 5) + self._mask_dims[::-1]  # reverse order of dimensions here
+
+        self.logger.debug(f"Creating dataset {self.GROUP_IMAGES} with shape {img_shape}")
+        self._cache.require_dataset(self.GROUP_IMAGES, shape=img_shape, dtype=np.float32)
+
+        self.logger.debug(f"Creating dataset {self.GROUP_MASKS} with shape {mask_shape}")
+        self._cache.require_dataset(self.GROUP_MASKS, shape=mask_shape, dtype=np.float32)
+
+        self.logger.debug(f"Group {self._itype} has datasets: {self._cache.keys()}")
+
+        # Actually start to store the data
+        ds_i = self._cache[self.GROUP_IMAGES]
+        ds_m = self._cache[self.GROUP_MASKS]
+        for i, data in enumerate(tqdm(self, unit="sample")):
+            # TODO: `i` will increase, even though the randomized dataset will yield the same image many times
+            #       Current solution: Don't run this via any randomized dataset.
+            img, mask = data[-2:]
+            # TODO: is this a valid way to determine whether this attribute has been set?
+            if force or ds_i[i].max() == 0:
+                self.logger.debug(f"Storing image at index {i}")
+                ds_i[i] = img
+            else:
+                self.logger.debug(f"Image at {i} already exists; skipping")
+            if force or ds_m[i].max() == 0:
+                self.logger.debug(f"Storing mask at index {i}")
+                ds_m[i] = mask
+            else:
+                self.logger.debug(f"Mask at {i} already exists; skipping")
+
+        self.logger.info("Initialization finished. Closing file.")
+
+        self._cache_fh.close()
+
+
+class RandomPatchIDRIDDataset(CachedIDRIDDataset):
     def __init__(self, *args, patch_size=256, n_patches=100, **kwargs):
         """
         Split every image from disk into `n_patches` times `patch_size`**2-sized chunks and consider them independent samples.
@@ -196,6 +333,7 @@ class RandomPatchIDRIDDataset(IDRIDDataset):
         img_path, _ = self._images[image_idx]
         img_name, _ = os.path.splitext(os.path.basename(img_path))
 
+        # TODO: caching will never cover randomization - only the base images! Check whether this needs to changed
         image = self._load_image(image_idx)
         masks = self._load_masks(image_idx)
 
@@ -219,8 +357,8 @@ class RandomPatchIDRIDDataset(IDRIDDataset):
         return img_name, ((row_start, col_start), (row_end, col_end)), image_ct, masks_ct
 
     @property
-    def _image_dims(self):
-        return 4288, 2848
+    def _sample_dims(self):
+        return self._patch_size, self._patch_size
 
 
 class BinaryPatchIDRIDDataset(RandomPatchIDRIDDataset):
@@ -233,6 +371,10 @@ class BinaryPatchIDRIDDataset(RandomPatchIDRIDDataset):
         """
         super().__init__(*args, **kwargs)
         self._presence_threshold = presence_threshold
+
+    @property
+    def _mask_dims(self):
+        return 5,
 
     def class_weights(self):
         if self._presence_threshold == 10 and self._patch_size == 500 and self._n_patches >= 50:

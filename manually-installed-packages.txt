@@ -14,3 +14,4 @@ numpydoc
 wandb
 tabulate
 tqdm
+h5py
