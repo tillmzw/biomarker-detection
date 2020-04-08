@@ -35,7 +35,7 @@ echo -e "======================================================"
 	cd $BASEDIR || exit
 	pip install --user --upgrade -r requirements.txt > /dev/null
 	./run.py \
-		--device cuda \
+		--device cpu \
 		--dir $BASEDIR \
 		--train \
 		--validate \
