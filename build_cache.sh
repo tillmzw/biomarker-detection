@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name="bmd"
+#SBATCH --job-name="bmd-cache"
 #SBATCH --mail-type=end,fail
 #SBATCH --mail-user="till.meyerzuwestram@artorg.unibe.ch"
 #SBATCH --cpus-per-task=1
