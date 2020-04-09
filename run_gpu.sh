@@ -8,7 +8,7 @@
 #SBATCH --time=24:00:0
 #SBATCH --gres=gpu:gtx1080ti:1
 #SBATCH --partition=gpu
-#SBATCH --tmp=30G
+#SBATCH --tmp=40G
 
 # just a little safeguard...
 declare -r TARGET_USER="tm19i462"
