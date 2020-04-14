@@ -139,7 +139,7 @@ class Trainer():
                 try:
                     validation_acc, validation_loss, avg_precision, confusion = validator.validate(model, validation_dataloader, loss_func=loss_func)
                     # adapt the learning rate
-                    lr_sched.step(validation_acc)
+                    lr_sched.step(avg_precision)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
