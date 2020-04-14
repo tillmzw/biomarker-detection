@@ -189,4 +189,4 @@ class SGDTrainer(Trainer):
 
 class AdamTrainer(Trainer):
     def get_optimizer(self, model):
-        return optim.Adam(params=model.parameters(), lr=1e-4)
+        return optim.Adam(params=model.parameters())
