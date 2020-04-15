@@ -43,7 +43,7 @@ class ResNet(nn.Module):
     def forward(self, x):
         x = self.features(x)
         x = self.classifier(x)
-        x = F.softmax(x)
+        x = torch.sigmoid(x)
         return x
 
 
