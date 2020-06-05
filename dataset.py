@@ -197,6 +197,7 @@ class CachedIDRIDDataset(IDRIDDataset):
     def __init__(self, *args, cache_file_name="cache.hdf5", **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(f"cache.{self._itype}")
+        self.logger.setLevel(logging.INFO)
         self._cache_file_name = os.path.join(self._path, cache_file_name)
         self._cache_fh = None
         self._cache = None
