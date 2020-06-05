@@ -16,50 +16,52 @@ def list_models():
 
 
 class ResNet(nn.Module):
-    def __init__(self, name_fmt="resnet{depth}", depth=50, pretrained=True, transfer=False):
+    def __init__(self, name_fmt="resnet{depth}", depth=50, pretrained=True, freeze_backbone=False):
         super().__init__()
         self._depth = depth
         self._pretrained = pretrained
-        self._transfer = transfer
+        self._freeze_backbone = freeze_backbone
         self._name = name_fmt.format(depth=depth)
 
         assert hasattr(models, self._name), "Model \"%s\" not found" % self._name
-        logger.info("Loading model %s (pretrained = %s, transfer = %s)" % (self._name, pretrained, transfer))
-        self.model = getattr(models, self._name)(pretrained=pretrained, progress=False)
-        if transfer:
-            logger.info("Disabling gradients on all feature-extracting layers")
-            for param in self.model.parameters():
+        logger.info(f"Loading model {self._name} (pretrained = {self._pretrained}, freeze backbone = {self._freeze_backbone})")
+        self.resnet = getattr(models, self._name)(pretrained=self._pretrained, progress=False)
+
+        if self._freeze_backbone:
+            for param in self.resnet.parameters():
                 param.requires_grad = False
-        # disable the FC and replace it with a separate FC in the classifier attribute
-        self.model.fc = Identity()
-        self.features = self.model
-        self.classifier = nn.Linear(in_features=512 * 4, out_features=5)
+
+        self.classifier = nn.Sequential(
+            nn.Linear(1000, 100),
+            nn.ReLU(),
+            nn.Linear(100, 5),
+            nn.Softmax(),
+        )
 
     @property
     def descriptor(self):
         # used for tracking this model's performance. Currently used to update wandb
-        return {"network": self._name, "pretrained": self._pretrained, "transfer": self._transfer}
+        return {"network": self._name, "pretrained": self._pretrained, "frozen_backbone": self._freeze_backbone}
 
     def forward(self, x):
-        x = self.features(x)
+        x = self.resnet(x)
         x = self.classifier(x)
-        x = torch.sigmoid(x)
         return x
 
 
 class ResNet50(ResNet):
-    def __init__(self, pretrained=True, transfer=False):
-        super().__init__(depth=50, pretrained=pretrained, transfer=transfer)
+    def __init__(self, pretrained=True):
+        super().__init__(depth=50, pretrained=pretrained)
 
 
 class ResNet101(ResNet):
-    def __init__(self, pretrained=True, transfer=False):
-        super().__init__(depth=101, pretrained=pretrained, transfer=transfer)
+    def __init__(self, pretrained=True):
+        super().__init__(depth=101, pretrained=pretrained)
 
 
 class WideResNet50(ResNet):
-    def __init__(self, pretrained=True, transfer=False):
-        super().__init__(name_fmt="wide_resnet{depth}_2", depth=50, pretrained=pretrained, transfer=transfer)
+    def __init__(self, pretrained=True):
+        super().__init__(name_fmt="wide_resnet{depth}_2", depth=50, pretrained=pretrained)
 
 
 class DenseNet161(nn.Module):
