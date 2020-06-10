@@ -115,13 +115,13 @@ if __name__ == "__main__":
             trainset = CachedIDRIDDataset("train",
                                           path=data_dir,
                                           device="cpu")  # CPU as CUDA is not multiprocessing compatible
-            trainset.initialize(force=args.initialize is "force")
+            trainset.initialize(force=args.initialize == "force")
         if args.validate:
             # init val set
             testset = CachedIDRIDDataset("test",
                                          path=data_dir,
                                          device="cpu")  # CPU as CUDA is not multiprocessing compatible
-            testset.initialize(force=args.initialize is "force")
+            testset.initialize(force=args.initialize == "force")
         if args.initialize in ("exit", "force"):
             logger.warning(f"Exiting due to argument flag \"{args.initialize}\".")
             sys.exit(0)
