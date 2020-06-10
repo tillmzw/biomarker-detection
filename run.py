@@ -172,7 +172,7 @@ if __name__ == "__main__":
     if args.validate:
         # mismatch record file
         mmr = os.path.join(args.scratch, "mismatches.csv") if (args.scratch and args.mismatches) else None
-        acc, loss, avg_precision, confusion = validate(net, testloader, record_filename=mmr)
+        acc, loss, avg_precision, confusion, prc = validate(net, testloader, record_filename=mmr)
         # log the confusion matrix
         logger.info(f"Final validation run: {acc:.2f}% accuracy, {avg_precision:.2f}")
 
@@ -183,3 +183,10 @@ if __name__ == "__main__":
         if args.scratch:
             utils.save_pil_to_scratch(implot, target_dir=args.scratch, name="final_confusion.png", overwrite=True)
         wandb.log({"confusion_matrix": wandb.Image(implot)})
+
+        logger.info("Creating precision-recall plot")
+        plot = utils.plot_precision_recall(*prc)
+        implot = utils.plot_to_pil(plot)
+        if args.scratch:
+            utils.save_pil_to_scratch(implot, target_dir=args.scratch, name="final_precision-recall.png", overwrite=True)
+        wandb.log({"precision_recall": wandb.Image(implot)})

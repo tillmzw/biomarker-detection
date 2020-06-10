@@ -137,7 +137,7 @@ class Trainer():
             if validation_dataloader:
                 validation_start = time.time()
                 try:
-                    validation_acc, validation_loss, avg_precision, confusion = validator.validate(model, validation_dataloader, loss_func=loss_func)
+                    validation_acc, validation_loss, avg_precision, confusion, prc = validator.validate(model, validation_dataloader, loss_func=loss_func)
                     # adapt the learning rate
                     lr_sched.step(avg_precision)
                 except Exception as e:

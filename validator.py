@@ -5,9 +5,10 @@ import csv
 import logging
 import itertools
 import torch
+from torch import nn
 import numpy as np
 import pandas as pd
-from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
+from sklearn.metrics import multilabel_confusion_matrix, average_precision_score, precision_recall_curve
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,24 @@ def validate(net, dataloader, record_filename=None, loss_func=None):
         # FIXME: this returns `nan` (as guard against division by zero) if all ground_truths are zero.
         avg_precision = average_precision_score(y_true=ground_truth.to("cpu"), y_score=predictions.to("cpu"))
 
-        return acc, loss, avg_precision, confusion
+        # calculate precision recall curves - needs special processing since this is only defined for a binary case
+        # see https://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html
+        precision = {}
+        recall = {}
+        avg_precision_class = {}
+        for c in range(5):
+            indices_c = ground_truth.eq(c)
+            if indices_c.sum() == 0:  # no samples found for this class
+                precision[c], recall[c], avg_precision_class[c] = np.zeros(1), np.zeros(1), float("nan")
+                continue
+            truth_c = torch.masked_select(ground_truth, indices_c).flatten()
+            pred_c = torch.masked_select(predictions, indices_c).flatten()
+            precision[c], recall[c], _ = precision_recall_curve(y_true=truth_c.to("cpu"), probas_pred=pred_c.to("cpu"))
+            avg_precision_class[c] = average_precision_score(y_true=truth_c.to("cpu"), y_score=pred_c.to("cpu"))
+
+        prc = (precision, recall, avg_precision_class)
+
+        return acc, loss, avg_precision, confusion, prc
 
     finally:
         if record_file:
