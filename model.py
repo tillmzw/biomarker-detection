@@ -35,7 +35,7 @@ class ResNet(nn.Module):
             nn.Linear(1000, 100),
             nn.ReLU(),
             nn.Linear(100, 5),
-            nn.Softmax(),
+            nn.Softmax(dim=-1),
         )
 
     @property
@@ -96,18 +96,3 @@ class DenseNet161(nn.Module):
         out = self.model.forward(x)
         out = self.classifier(out)
         return out
-
-
-class Identity(nn.Module):
-    """
-    A module that returns its input as output.
-    Useful to functionally remove other modules.
-
-    https://discuss.pytorch.org/t/how-to-delete-layer-in-pretrained-model/17648/2
-    """
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return x
-
