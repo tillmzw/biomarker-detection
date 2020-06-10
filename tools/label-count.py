@@ -56,20 +56,22 @@ if __name__ == "__main__":
                 counts[k] = prev + this
         print()
 
-    header_fmt  = "{label:^15} {abs_c:>8} {prop_c:>12} {rel_c:>12}"
-    content_fmt = "{label:^15} {abs_c:>8} {prop_c:>12.3f} {rel_c:>12.3f}"
-    header = header_fmt.format(**{
-        "label": "label",
-        "abs_c": "count",
-        "prop_c": "prop.",
-        "rel_c": "rel."
-    })
-    header_desc = header_fmt.format(**{
-        "label": "",
-        "abs_c": "",
-        "prop_c": "count/positives",
-        "rel_c": "count/total"
-    })
+    header_fmt  = "{label:^15} {abs_c:>8} {prop_c:>12} {rel_c:>12} {weights_c:>12}"
+    content_fmt = "{label:^15} {abs_c:>8} {prop_c:>12.3f} {rel_c:>12.3f} {weights_c:>12.3f}"
+    header = header_fmt.format(
+        label="label",
+        abs_c="count",
+        prop_c="prop.",
+        rel_c="rel.",
+        weights_c="weights"
+    )
+    header_desc = header_fmt.format(
+        label="",
+        abs_c="",
+        prop_c="count/positives",
+        rel_c="count/total",
+        weights_c=""
+    )
     print(header)
     print(header_desc)
     print(len(header) * "-")
@@ -84,9 +86,16 @@ if __name__ == "__main__":
             prop_c = 0.0
         else:
             prop_c = abs_c / sum(counts)
-        print(content_fmt.format(**{"label": label, "abs_c": abs_c, "prop_c": prop_c, "rel_c": rel_c}))
+        # weight calculation follows exactly
+        # https://scikit-learn.org/stable/modules/generated/sklearn.utils.class_weight.compute_class_weight.html
+        if abs_c > 0:
+            weight = total / (len(BinaryPatchIDRIDDataset.CLASSES) * abs_c)
+        else:
+            weight = float('nan')
+
+        print(content_fmt.format(label=label, abs_c=abs_c, prop_c=prop_c, rel_c=rel_c, weights_c=weight))
 
     print(len(header) * "=")
-    print(content_fmt.format(**{"label": "", "abs_c": sum(counts), "prop_c": 1, "rel_c": (total / sum(counts))}))
+    print(content_fmt.format(label="", abs_c=sum(counts), prop_c=1, rel_c=(total / sum(counts)), weights_c=-1))
     print(len(header) * ".")
-    print(header_fmt.format(**{"label": "# images", "abs_c": total, "prop_c": "", "rel_c": ""}))
+    print(header_fmt.format(label="# images", abs_c=total, prop_c="", rel_c="", weights_c=""))
