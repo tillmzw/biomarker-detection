@@ -93,19 +93,17 @@ def validate(net, dataloader, record_filename=None, loss_func=None):
         avg_precision = average_precision_score(y_true=ground_truth.to("cpu"), y_score=predictions.to("cpu"))
 
         # calculate precision recall curves - needs special processing since this is only defined for a binary case
+        # so we handle every class separately;
         # see https://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html
+        logger.debug("Calculating precision-recall curves")
         precision = {}
         recall = {}
         avg_precision_class = {}
-        for c in range(5):
-            indices_c = ground_truth.eq(c)
-            if indices_c.sum() == 0:  # no samples found for this class
-                precision[c], recall[c], avg_precision_class[c] = np.zeros(1), np.zeros(1), float("nan")
-                continue
-            truth_c = torch.masked_select(ground_truth, indices_c).flatten()
-            pred_c = torch.masked_select(predictions, indices_c).flatten()
-            precision[c], recall[c], _ = precision_recall_curve(y_true=truth_c.to("cpu"), probas_pred=pred_c.to("cpu"))
-            avg_precision_class[c] = average_precision_score(y_true=truth_c.to("cpu"), y_score=pred_c.to("cpu"))
+        for c_idx in range(5):
+            truth_c = ground_truth[:, c_idx].to("cpu")
+            pred_c = predictions[:, c_idx].to("cpu")
+            precision[c_idx], recall[c_idx], _ = precision_recall_curve(y_true=truth_c, probas_pred=pred_c)
+            avg_precision_class[c_idx] = average_precision_score(y_true=truth_c, y_score=pred_c)
 
         prc = (precision, recall, avg_precision_class)
 
