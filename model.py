@@ -35,7 +35,8 @@ class ResNet(nn.Module):
             nn.Linear(1000, 100),
             nn.ReLU(),
             nn.Linear(100, 5),
-            nn.Softmax(dim=-1),
+            # activation is included in loss function for numerical stability (see doc)
+            #nn.Sigmoid(),
         )
 
     @property

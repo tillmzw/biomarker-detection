@@ -6,8 +6,6 @@ import logging
 import itertools
 import torch
 from torch import nn
-import numpy as np
-import pandas as pd
 from sklearn.metrics import multilabel_confusion_matrix, average_precision_score, precision_recall_curve
 
 logger = logging.getLogger(__name__)
@@ -53,6 +51,9 @@ def validate(net, dataloader, record_filename=None, loss_func=None):
                 masks = masks.to(model_device)
 
                 outputs = net(images)
+                # the network does not include the last activation layer
+                # since the loss already includes a sigmoid
+                outputs = nn.Sigmoid()(outputs)
 
                 if record_file and record_writer:
                     # at this point, I expect a meta to have 3 elements; if that's not true, the used
