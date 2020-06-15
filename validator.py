@@ -6,7 +6,7 @@ import logging
 import itertools
 import torch
 from torch import nn
-from sklearn.metrics import multilabel_confusion_matrix, average_precision_score, precision_recall_curve
+from sklearn.metrics import multilabel_confusion_matrix, average_precision_score, precision_recall_curve, roc_curve, auc
 
 logger = logging.getLogger(__name__)
 
@@ -100,15 +100,20 @@ def validate(net, dataloader, record_filename=None, loss_func=None):
         precision = {}
         recall = {}
         avg_precision_class = {}
+        fpr, tpr, roc_auc = {}, {}, {}
         for c_idx in range(5):
             truth_c = ground_truth[:, c_idx].to("cpu")
             pred_c = predictions[:, c_idx].to("cpu")
             precision[c_idx], recall[c_idx], _ = precision_recall_curve(y_true=truth_c, probas_pred=pred_c)
             avg_precision_class[c_idx] = average_precision_score(y_true=truth_c, y_score=pred_c)
+            fpr[c_idx], tpr[c_idx], _ = roc_curve(y_true=truth_c, y_score=pred_c)
+            roc_auc[c_idx] = auc(fpr[c_idx], tpr[c_idx])
+
 
         prc = (precision, recall, avg_precision_class)
+        roc = (fpr, tpr, roc_auc)
 
-        return acc, loss, avg_precision, confusion, prc
+        return acc, loss, avg_precision, confusion, prc, roc
 
     finally:
         if record_file:

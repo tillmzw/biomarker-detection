@@ -137,7 +137,7 @@ class Trainer():
             if validation_dataloader:
                 validation_start = time.time()
                 try:
-                    validation_acc, validation_loss, avg_precision, confusion, prc = validator.validate(model, validation_dataloader, loss_func=loss_func)
+                    validation_acc, validation_loss, avg_precision, confusion, prc, roc = validator.validate(model, validation_dataloader, loss_func=loss_func)
                     # adapt the learning rate
                     lr_sched.step(avg_precision)
                 except Exception as e:
@@ -163,6 +163,16 @@ class Trainer():
                     plot = utils.plot_confusion_matrix(confusion)
                     implot = utils.plot_to_pil(plot)
                     wandb.log({"epoch_training_confusion_matrix": wandb.Image(implot)}, step=step)
+
+                    logger.info("Creating precision-recall plot")
+                    plot = utils.plot_precision_recall(*prc)
+                    implot = utils.plot_to_pil(plot)
+                    wandb.log({"epoch_training_precision_recall": wandb.Image(implot)})
+
+                    logger.info("Creating roc+auc plot")
+                    plot = utils.plot_roc_auc(*roc)
+                    implot = utils.plot_to_pil(plot)
+                    wandb.log({"epoch_training_roc_auc": wandb.Image(implot)})
 
                     if self.should_early_stop(validation_loss.item()):
                         logger.warning("Engaging early stopping!")

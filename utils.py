@@ -253,6 +253,34 @@ def plot_precision_recall(precision, recall, average_precision):
     return plt
 
 
+def plot_roc_auc(fpr, tpr, roc_auc):
+    # https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html
+    import matplotlib.pyplot as plt
+    import dataset
+
+    colors = ['navy', 'turquoise', 'darkorange', 'cornflowerblue', 'teal']
+    n_classes = 5
+    lines = []
+    labels = []
+
+    for i, color in zip(range(n_classes), colors):
+        l, = plt.plot(fpr[i], tpr[i], color=color, lw=2)
+        c = dataset.IDRIDDataset.CLASSES[i]
+        lines.append(l)
+        labels.append("ROC curve of class {0} (area = {1:0.2f})".format(c, roc_auc[i]))
+
+    fig = plt.gcf()
+    fig.subplots_adjust(bottom=0.25)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC + AUC')
+    plt.legend(lines, labels, loc="lower right")
+
+    return plt
+
+
 def plot_to_pil(plt, format="png"):
     import io
     from PIL import Image
