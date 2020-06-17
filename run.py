@@ -19,6 +19,7 @@ import utils
 from validator import validate
 
 logger = logging.getLogger(__name__)
+# FIXME: HDF5 seems incompatible with multi-threaded data loading.
 CPU_COUNT = min(0, multiprocessing.cpu_count())
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
