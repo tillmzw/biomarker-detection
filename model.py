@@ -31,13 +31,11 @@ class ResNet(nn.Module):
             for param in self.resnet.parameters():
                 param.requires_grad = False
 
-        self.classifier = nn.Sequential(
-            nn.Linear(1000, 100),
-            nn.ReLU(),
-            nn.Linear(100, 5),
-            # activation is included in loss function for numerical stability (see doc)
-            #nn.Sigmoid(),
-        )
+        # Feedback from Pablo:
+        # instead of using additional linear layers to reduce number of classes, just replace the last layer.
+        # Note: This *will* fail if the resnet is not using the bottleneck block (all resnets with d>=50 use bottleneck)
+        #       since their last layer has fewer elements (512 * 1 instead of 512 * 4).
+        self.resnet.fc = nn.Linear(512 * 4, 5)
 
     @property
     def descriptor(self):
@@ -46,7 +44,6 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         x = self.resnet(x)
-        x = self.classifier(x)
         return x
 
 
