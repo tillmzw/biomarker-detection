@@ -35,6 +35,9 @@ class Trainer():
     def get_loss_function(self, weights=None):
         return nn.BCEWithLogitsLoss(weight=weights)
 
+    def get_validation_loss_function(self, weights=None):
+        return nn.BCELoss(weight=weights)
+
     def get_lr_scheduler(self, optimizer):
         return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=6)
 
@@ -79,6 +82,7 @@ class Trainer():
             logger.warning("No class weight calculation supported by data loader %s" % dataloader.dataset.__class__)
             weights = None
         loss_func = self.get_loss_function(weights=weights)
+        valid_loss_func = self.get_validation_loss_function(weights=weights)
         optimizer = self.get_optimizer(model)
         lr_sched = self.get_lr_scheduler(optimizer)
 
@@ -137,7 +141,9 @@ class Trainer():
             if validation_dataloader:
                 validation_start = time.time()
                 try:
-                    validation_acc, validation_loss, avg_precision, confusion, prc, roc = validator.validate(model, validation_dataloader, loss_func=loss_func)
+                    validation_acc, validation_loss, avg_precision, confusion, prc, roc = validator.validate(model,
+                                                                                                             validation_dataloader,
+                                                                                                             loss_func=self.get_validation_loss_function(weights))
                     # adapt the learning rate
                     lr_sched.step(avg_precision)
                 except Exception as e:
