@@ -118,6 +118,12 @@ class IDRIDDataset(Dataset):
         """
         return loader_idx, 0
 
+    def get_path_for_name(self, image_name):
+        for image_idx, (img_path, _) in enumerate(self._images):
+            img_name, _ = os.path.splitext(os.path.basename(img_path))
+            if img_name == image_name:
+                return os.path.abspath(img_path)
+
     def _image_name(self, image_idx):
         img_path, _ = self._images[image_idx]
         img_name, _ = os.path.splitext(os.path.basename(img_path))

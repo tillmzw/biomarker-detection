@@ -67,7 +67,7 @@ if __name__ == '__main__':
         orig_image = Image.open(input_).convert("RGB")
         prep_img = preprocess_image(orig_image)
 
-        mods = model.features._modules
+        mods = model.resnet._modules
 
         # take all layers
         layer_cams = (

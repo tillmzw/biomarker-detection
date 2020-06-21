@@ -77,6 +77,20 @@ def norm_mat(mat, norm="all"):
     return mat
 
 
+def unnorm_transform(t):
+    """
+
+    for t, m, s in zip(t, mean, std):
+        t.mul_(s).add_(m)
+    return t
+    """
+    from torchvision import transforms
+    inv_normalize = transforms.Normalize(
+        mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225],
+        std=[1 / 0.229, 1 / 0.224, 1 / 0.225]
+    )
+    return inv_normalize(t)
+
 def convert_multilabel_confusion_mat(mat):
     """
      the confusion matrix is expected to be for every class
