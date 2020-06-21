@@ -98,6 +98,7 @@ if __name__ == "__main__":
             class_counters += masks
 
             outputs = net(images)
+            sig = nn.Sigmoid()(outputs)
 
             cams = generate_cam(features[0], weight_softmax, resize=(height, width))
 
@@ -111,17 +112,26 @@ if __name__ == "__main__":
             full_image = cv2.imread(orig_image_path)
 
             for cls, cam in enumerate(cams):
+                # should this class be positive?
+                true_class = masks[0][cls] == 1
+                if not true_class:
+                    print(f"Skipping CAM for class {cls} - not a real positive")
+                    continue
                 colormap = cv2.resize(cam, (width, height))
                 heatmap = cv2.applyColorMap(colormap, cv2.COLORMAP_JET)
 
-                overlayed_cam = heatmap * 0.1 + rec_image * 0.5  # adapt pixel intensities to simulate overlay when merging
+                overlayed_cam = heatmap * 0.3 + rec_image * 0.5  # adapt pixel intensities to simulate overlay when merging
 
                 # heatmap, resized to be the same size as the original image (4288x2488)
                 heatmap_full = np.zeros(full_image.shape, dtype=np.uint8)
                 # fill in the heatmap data
                 heatmap_full[row_start:row_end, col_start:col_end, :] = heatmap
                 # overlay heatmap over original image (with alpha values)
-                merge = cv2.addWeighted(full_image, 1, heatmap_full, 0.6, 0)
+                merge = cv2.addWeighted(full_image, 1, heatmap_full, 0.4, 0)
+                # add some textual information to the output image
+                cv2.putText(merge, f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}", (10, 100), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=3, color=(128, 255, 128), thickness=2)
+                desc = "; ".join([f"{BinaryPatchIDRIDDataset.CLASSES[i]}: {sig[0][i]:.2f}" for i in range(5) if masks[0][i] == 1])
+                cv2.putText(merge, desc, (10, height - 10), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=3, color=(128, 255, 128), thickness=2)
 
                 # save all these images to disk.
                 d = os.path.join(args.scratch, str(cls), f"{names[0]}_cam.jpg")
