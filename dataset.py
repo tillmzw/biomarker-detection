@@ -210,7 +210,10 @@ class CachedIDRIDDataset(IDRIDDataset):
 
     def __del__(self):
         if self._cache_fh:
-            self._cache_fh.close()
+            try:
+                self._cache_fh.close()
+            except ImportError as ie:
+                self.logger.error(f"An error occured when closing the cache: {ie}")
             self.logger.info(f"Closed cache at {self._cache_file_name}")
 
     def _load_image(self, image_idx) -> torch.Tensor:
