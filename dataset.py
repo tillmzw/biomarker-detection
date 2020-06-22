@@ -320,7 +320,7 @@ class CachedIDRIDDataset(IDRIDDataset):
 
 
 class RandomPatchIDRIDDataset(CachedIDRIDDataset):
-    def __init__(self, *args, patch_size=256, n_patches=100, **kwargs):
+    def __init__(self, *args, patch_size=500, n_patches=100, **kwargs):
         """
         Split every image from disk into `n_patches` times `patch_size`**2-sized chunks and consider them independent samples.
         Note: These chunks may overlap!
@@ -373,7 +373,7 @@ class RandomPatchIDRIDDataset(CachedIDRIDDataset):
 
 
 class BinaryPatchIDRIDDataset(RandomPatchIDRIDDataset):
-    def __init__(self, *args, presence_threshold=100, **kwargs):
+    def __init__(self, *args, presence_threshold=10, **kwargs):
         """
         Dataset that splits images into even patches (`patch_size`**2 in size) and calculates
         presence and absence of features (loaded from mask files), giving a binary value for every

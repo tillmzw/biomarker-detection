@@ -81,9 +81,9 @@ if __name__ == "__main__":
     # initialize datasets
     datasets = []
     if args.use_training_dataset:
-        datasets.append(BinaryPatchIDRIDDataset("train", limit=args.limit, presence_threshold=10, patch_size=500))
+        datasets.append(BinaryPatchIDRIDDataset("train", limit=args.limit))
     if args.use_validation_dataset:
-        datasets.append(BinaryPatchIDRIDDataset("test", limit=args.limit, presence_threshold=10, patch_size=500))
+        datasets.append(BinaryPatchIDRIDDataset("test", limit=args.limit))
 
     dataloaders = [DataLoader(ds, batch_size=1) for ds in datasets]
 
