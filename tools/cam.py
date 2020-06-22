@@ -55,6 +55,7 @@ if __name__ == "__main__":
     features = []  # TODO: make sure this doesn't overflow and recreate it appropriately
     def module_forward_hook(module, input, output):
         """Run after the forward() pass of a given module and keeps track of its output."""
+        assert len(features) == 0
         sig = nn.Sigmoid()(output)
         features.append(sig.data.cpu().numpy())
         return None  # this makes this hook not affect the module
@@ -77,29 +78,34 @@ if __name__ == "__main__":
     # initialize datasets
     datasets = []
     if args.use_training_dataset:
-        datasets.append(BinaryPatchIDRIDDataset("train", limit=args.limit))
+        datasets.append(BinaryPatchIDRIDDataset("train", limit=args.limit, presence_threshold=10, patch_size=500))
     if args.use_validation_dataset:
-        datasets.append(BinaryPatchIDRIDDataset("test", limit=args.limit))
+        datasets.append(BinaryPatchIDRIDDataset("test", limit=args.limit, presence_threshold=10, patch_size=500))
 
     dataloaders = [DataLoader(ds, batch_size=1) for ds in datasets]
 
     # iterate over data
     for dataloader in tqdm(dataloaders, unit="dataloader"):
         class_counters = torch.zeros((1, len(BinaryPatchIDRIDDataset.CLASSES)))
-        for data in tqdm(dataloader, unit="image"):
-            features = []
+        for i, data in enumerate(tqdm(dataloader, unit="image")):
             names, coords, images, masks = data
+
+            name = f"{names[0]}_{i:04d}"
+            features = []
             assert len(images) == 1  # additional assertion to make sure we're only working a single image
             (row_start, col_start), (row_end, col_end) = coords
             image = images[0, :, :, :]
             _, height, width = image.shape
             # double reconfirm that image dimensions match expectations
             assert (height, width) == ((col_end - col_start), (row_end - row_start))
+            # DEBUG:
+            print(f"{name}: row: {row_start.item():>4} - {row_end.item():>4}; cols: {col_start.item():>4} - {col_end.item():>4}")
             class_counters += masks
 
             outputs = net(images)
             sig = nn.Sigmoid()(outputs)
 
+            assert len(features) == 1  # sanity check
             cams = generate_cam(features[0], weight_softmax, resize=(height, width))
 
             # reconstruct the original input patch so that it's digestible for opencv
@@ -112,15 +118,19 @@ if __name__ == "__main__":
             full_image = cv2.imread(orig_image_path)
 
             for cls, cam in enumerate(cams):
+                # DEBUGGING: positioning of patch is wrong, best seen on optic discs
+                if not cls in (2, 4): continue
                 # should this class be positive?
                 true_class = masks[0][cls] == 1
                 if not true_class:
-                    print(f"Skipping CAM for class {cls} - not a real positive")
+                    print(f"{name}: Skipping CAM for class {cls} - not a real positive")
                     continue
-                colormap = cv2.resize(cam, (width, height))
-                heatmap = cv2.applyColorMap(colormap, cv2.COLORMAP_JET)
+                #colormap = cv2.resize(cam, (width, height))
+                scaled_cam = cam * sig[0][cls].item()
+                scaled_cam = np.rint(scaled_cam).astype(np.uint8)  # opencv requires ints
+                heatmap = cv2.applyColorMap(scaled_cam, cv2.COLORMAP_JET)
 
-                overlayed_cam = heatmap * 0.3 + rec_image * 0.5  # adapt pixel intensities to simulate overlay when merging
+                overlayed_cam = heatmap * 0.3 + rec_image * 0.9  # adapt pixel intensities to simulate overlay when merging
 
                 # heatmap, resized to be the same size as the original image (4288x2488)
                 heatmap_full = np.zeros(full_image.shape, dtype=np.uint8)
@@ -129,20 +139,25 @@ if __name__ == "__main__":
                 # overlay heatmap over original image (with alpha values)
                 merge = cv2.addWeighted(full_image, 1, heatmap_full, 0.4, 0)
                 # add some textual information to the output image
-                cv2.putText(merge, f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}", (10, 100), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=3, color=(128, 255, 128), thickness=2)
-                desc = "; ".join([f"{BinaryPatchIDRIDDataset.CLASSES[i]}: {sig[0][i]:.2f}" for i in range(5) if masks[0][i] == 1])
-                cv2.putText(merge, desc, (10, height - 10), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=3, color=(128, 255, 128), thickness=2)
+                cv2.putText(merge, f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}", (10, 100), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=2, color=(128, 255, 128), thickness=2)
+                descs = []
+                for i in range(5):
+                    # mark a class as *a*bsent or *p*resent
+                    mod = {0: "a", 1: "p"}[masks[0][i].round().item()]
+                    descs.append(f"{BinaryPatchIDRIDDataset.CLASSES[i]} [{mod}]: {sig[0][i]:.2f}")
+                cv2.putText(merge, "; ".join(descs), (10, height - 10), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1.5, color=(128, 255, 128), thickness=1)
 
                 # save all these images to disk.
-                d = os.path.join(args.scratch, str(cls), f"{names[0]}_cam.jpg")
-                d_full = os.path.join(args.scratch, str(cls), f"{names[0]}_full.jpg")
-                d_merge = os.path.join(args.scratch, str(cls), f"{names[0]}_merge.jpg")
+                d = os.path.join(args.scratch, str(cls), f"{name}_cam.jpg")
+                d_full = os.path.join(args.scratch, str(cls), f"{name}_full.jpg")
+                d_merge = os.path.join(args.scratch, str(cls), f"{name}_merge.jpg")
 
                 cv2.imwrite(d, overlayed_cam)
                 cv2.imwrite(d_merge, merge)
                 # for the original image a symlink should be sufficient
                 if not os.path.exists(d_full):
                     os.symlink(orig_image_path, d_full)
+                import time; time.sleep(0.1)
 
             if args.class_limit and class_counters.min() >= args.class_limit:
                 print(f"Aborting loop since the smallest class has now {class_counters.min()} entries")
