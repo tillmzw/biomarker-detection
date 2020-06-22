@@ -17,19 +17,30 @@ import model
 import utils
 
 
-def generate_cam(feature_conv, weight_softmax, classes=range(0, 5), resize=(256, 256)):
-    batches, channels, h, w = feature_conv.shape
-    output = []
-    for idx in classes:
-        cam = weight_softmax[idx].dot(feature_conv.reshape((channels, h * w)))
-        #cam = feature_conv.reshape((channels, h*w))
-        cam = cam.reshape(h, w)
-        cam = cam - np.min(cam)
-        cam_img = cam / np.max(cam)
-        cam_img = np.uint8(255 * cam_img)
-        cam_res = cv2.resize(cam_img, resize)
-        output.append(cam_res)
-    return output
+class CAMHook:
+    def __init__(self, weights):
+        self.feature_conv = None
+        self.weights = weights
+
+    def __call__(self, module, input, output):
+        sig = nn.Sigmoid()(output)
+        self.feature_conv = sig.data.cpu().numpy()
+
+    def clear(self):
+        self.feature_conv = None
+
+    def generate_cams(self, classes=range(0, 5), resize=(256, 256)):
+        batches, channels, h, w = self.feature_conv.shape
+        output = []
+        for idx in classes:
+            cam = self.weights[idx].dot(self.feature_conv.reshape((channels, h * w)))
+            cam = cam.reshape(h, w)
+            cam = cam - np.min(cam)
+            cam_img = cam / np.max(cam)
+            cam_img = np.uint8(255 * cam_img)
+            cam_res = cv2.resize(cam_img, resize)
+            output.append(cam_res)
+        return output
 
 
 if __name__ == "__main__":
@@ -49,22 +60,14 @@ if __name__ == "__main__":
     net = getattr(model, args.model)()
     net.load_state_dict(torch.load(args.state, map_location="cpu"))
     net.eval()
-
-    # register hooks to model to record the output after a given layer
-    # Note: If this is not a list, scoping prevents it from being reused in different scopes.
-    features = []  # TODO: make sure this doesn't overflow and recreate it appropriately
-    def module_forward_hook(module, input, output):
-        """Run after the forward() pass of a given module and keeps track of its output."""
-        assert len(features) == 0
-        sig = nn.Sigmoid()(output)
-        features.append(sig.data.cpu().numpy())
-        return None  # this makes this hook not affect the module
-
-    net.resnet._modules.get("layer4").register_forward_hook(module_forward_hook)
     # get the softmax weight
     params = list(net.parameters())
     # get the weights from the last (linear) layer
     weight_softmax = np.squeeze(params[-2].data.numpy())
+    # build & register the hook
+
+    cam_hook = CAMHook(weights=weight_softmax)
+    net.resnet._modules.get("layer4").register_forward_hook(cam_hook)
 
     # initialize output dirs (root and one dir per class)
     if not args.scratch.endswith("cam"):
@@ -91,7 +94,6 @@ if __name__ == "__main__":
             names, coords, images, masks = data
 
             name = f"{names[0]}_{i:04d}"
-            features = []
             assert len(images) == 1  # additional assertion to make sure we're only working a single image
             (row_start, col_start), (row_end, col_end) = coords
             image = images[0, :, :, :]
@@ -99,14 +101,13 @@ if __name__ == "__main__":
             # double reconfirm that image dimensions match expectations
             assert (height, width) == ((col_end - col_start), (row_end - row_start))
             # DEBUG:
-            print(f"{name}: row: {row_start.item():>4} - {row_end.item():>4}; cols: {col_start.item():>4} - {col_end.item():>4}")
+            #print(f"{name}: row: {row_start.item():>4} - {row_end.item():>4}; cols: {col_start.item():>4} - {col_end.item():>4}")
             class_counters += masks
 
             outputs = net(images)
             sig = nn.Sigmoid()(outputs)
-
-            assert len(features) == 1  # sanity check
-            cams = generate_cam(features[0], weight_softmax, resize=(height, width))
+            cams = cam_hook.generate_cams(resize=(height, width))
+            cam_hook.clear()  # prep for next iteration
 
             # reconstruct the original input patch so that it's digestible for opencv
             rec_image = utils.unnorm_transform(image)
@@ -118,14 +119,12 @@ if __name__ == "__main__":
             full_image = cv2.imread(orig_image_path)
 
             for cls, cam in enumerate(cams):
-                # DEBUGGING: positioning of patch is wrong, best seen on optic discs
-                if not cls in (2, 4): continue
                 # should this class be positive?
                 true_class = masks[0][cls] == 1
                 if not true_class:
-                    print(f"{name}: Skipping CAM for class {cls} - not a real positive")
+                    #print(f"{name}: Skipping CAM for class {cls} - not a real positive")
                     continue
-                #colormap = cv2.resize(cam, (width, height))
+
                 scaled_cam = cam * sig[0][cls].item()
                 scaled_cam = np.rint(scaled_cam).astype(np.uint8)  # opencv requires ints
                 heatmap = cv2.applyColorMap(scaled_cam, cv2.COLORMAP_JET)
@@ -145,7 +144,7 @@ if __name__ == "__main__":
                     # mark a class as *a*bsent or *p*resent
                     mod = {0: "a", 1: "p"}[masks[0][i].round().item()]
                     descs.append(f"{BinaryPatchIDRIDDataset.CLASSES[i]} [{mod}]: {sig[0][i]:.2f}")
-                cv2.putText(merge, "; ".join(descs), (10, height - 10), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1.5, color=(128, 255, 128), thickness=1)
+                cv2.putText(merge, "; ".join(descs), (10, 200), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1.5, color=(128, 255, 128), thickness=1)
 
                 # save all these images to disk.
                 d = os.path.join(args.scratch, str(cls), f"{name}_cam.jpg")
@@ -157,7 +156,6 @@ if __name__ == "__main__":
                 # for the original image a symlink should be sufficient
                 if not os.path.exists(d_full):
                     os.symlink(orig_image_path, d_full)
-                import time; time.sleep(0.1)
 
             if args.class_limit and class_counters.min() >= args.class_limit:
                 print(f"Aborting loop since the smallest class has now {class_counters.min()} entries")
