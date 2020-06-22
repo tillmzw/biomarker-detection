@@ -157,6 +157,7 @@ class IDRIDDataset(Dataset):
         # determine the size of the masks by any mask in the stack
         size_stack = torch.stack([torch.tensor(i.size()) for i in masks if i is not None], dim=1)
         masksize = tuple(torch.min(size_stack, dim=1).values)
+        assert masksize == self._image_dims[::-1], f"Mask size {masksize} not matching image size {self._image_dims}"
         for i, mask in enumerate(masks):
             # fill in only empty masks
             if mask is not None:
@@ -445,12 +446,21 @@ if __name__ == "__main__":
 
     nrows = math.floor(math.sqrt(len(ds.CLASSES) + 1))
     ncols = nrows + 1
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 10))
     fig.tight_layout()
     axes = axes.flatten()  # don't care about the order of the axes
 
     axes[0].set_title(dname)
     axes[0].imshow(di)
+    # change tick labels so that the coordinates are included
+    # need a drawn canvas so that axes ticks are computed
+    fig.canvas.draw()
+    # note: the ticks have funny minus sign chars...
+    xlabels_off = [float(l.get_text().replace("−", "-")) + coords[0][1] for l in axes[0].get_xticklabels()]
+    ylabels_off = [float(l.get_text().replace("−", "-")) + coords[0][0] for l in axes[0].get_yticklabels()]
+
+    axes[0].set_xticklabels(xlabels_off)
+    axes[0].set_yticklabels(ylabels_off)
 
     for i, cls in enumerate(ds.CLASSES):
         mask = dm[i, :, :]
@@ -461,5 +471,12 @@ if __name__ == "__main__":
         # TODO: fix cmap - cmap range might be wrong?
         axes[i + 1].imshow(mask.to(dtype=torch.float), alpha=0.5, cmap=cm.binary)
         axes[i + 1].set_title(f"{cls}; px={pixels}")
+
+        fig.canvas.draw()
+        xlabels_off = [float(l.get_text().replace("−", "-")) + coords[0][1] for l in axes[i + 1].get_xticklabels()]
+        ylabels_off = [float(l.get_text().replace("−", "-")) + coords[0][0] for l in axes[i + 1].get_yticklabels()]
+
+        axes[i+1].set_xticklabels(xlabels_off)
+        axes[i+1].set_yticklabels(ylabels_off)
 
     plt.show()
