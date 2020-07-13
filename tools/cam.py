@@ -23,8 +23,8 @@ class CAMHook:
         self.weights = weights
 
     def __call__(self, module, input, output):
-        sig = nn.Sigmoid()(output)
-        self.feature_conv = sig.data.cpu().numpy()
+        # Note: the sigmoid is applied during CAM generation
+        self.feature_conv = output.data.cpu().numpy()
 
     def clear(self):
         self.feature_conv = None
@@ -33,11 +33,15 @@ class CAMHook:
         batches, channels, h, w = self.feature_conv.shape
         output = []
         for idx in classes:
-            cam = self.weights[idx].dot(self.feature_conv.reshape((channels, h * w)))
+            class_weight = self.weights[idx]
+            cam = class_weight.dot(self.feature_conv.reshape((channels, h * w)))
             cam = cam.reshape(h, w)
-            cam = cam - np.min(cam)
-            cam_img = cam / np.max(cam)
-            cam_img = np.uint8(255 * cam_img)
+            #cam = cam - np.min(cam)
+            #cam_img = cam / np.max(cam)
+            # calculate the sigmoid - since this is not a tensor but a ndarray, we can't use torch.sigmoid()
+            sig_cam = 1 / (1 + np.exp(-cam))
+            # TODO: clip negative values?
+            cam_img = np.uint8(255 * sig_cam)
             cam_res = cv2.resize(cam_img, resize)
             output.append(cam_res)
         return output
@@ -85,7 +89,7 @@ if __name__ == "__main__":
     if args.use_validation_dataset:
         datasets.append(BinaryPatchIDRIDDataset("test", limit=args.limit))
 
-    dataloaders = [DataLoader(ds, batch_size=1) for ds in datasets]
+    dataloaders = [DataLoader(ds, batch_size=1, shuffle=True) for ds in datasets]
 
     # iterate over data
     for dataloader in tqdm(dataloaders, unit="dataloader"):
@@ -93,7 +97,6 @@ if __name__ == "__main__":
         for i, data in enumerate(tqdm(dataloader, unit="image")):
             names, coords, images, masks = data
 
-            name = f"{names[0]}_{i:04d}"
             assert len(images) == 1  # additional assertion to make sure we're only working a single image
             (row_start, col_start), (row_end, col_end) = coords
             image = images[0, :, :, :]
@@ -105,7 +108,7 @@ if __name__ == "__main__":
             class_counters += masks
 
             outputs = net(images)
-            sig = nn.Sigmoid()(outputs)
+            sig = torch.sigmoid(outputs)
             cams = cam_hook.generate_cams(resize=(height, width))
             cam_hook.clear()  # prep for next iteration
 
@@ -125,9 +128,10 @@ if __name__ == "__main__":
                     #print(f"{name}: Skipping CAM for class {cls} - not a real positive")
                     continue
 
-                scaled_cam = cam * sig[0][cls].item()
-                scaled_cam = np.rint(scaled_cam).astype(np.uint8)  # opencv requires ints
-                heatmap = cv2.applyColorMap(scaled_cam, cv2.COLORMAP_JET)
+                class_name = BinaryPatchIDRIDDataset.CLASSES[cls]
+                pretty_name = f"{names[0]}_{i:04d}_{class_name.lower().replace(' ', '-')}"
+
+                heatmap = cv2.applyColorMap(np.rint(cam).astype(np.uint8), cv2.COLORMAP_JET)
 
                 overlayed_cam = heatmap * 0.3 + rec_image * 0.9  # adapt pixel intensities to simulate overlay when merging
 
@@ -136,7 +140,7 @@ if __name__ == "__main__":
                 # fill in the heatmap data
                 heatmap_full[row_start:row_end, col_start:col_end, :] = heatmap
                 # overlay heatmap over original image (with alpha values)
-                merge = cv2.addWeighted(full_image, 1, heatmap_full, 0.4, 0)
+                merge = cv2.addWeighted(full_image, 1, heatmap_full, 0.6, 0)
                 # add some textual information to the output image
                 cv2.putText(merge, f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}", (10, 100), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=2, color=(128, 255, 128), thickness=2)
                 descs = []
@@ -147,9 +151,9 @@ if __name__ == "__main__":
                 cv2.putText(merge, "; ".join(descs), (10, 200), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1.5, color=(128, 255, 128), thickness=1)
 
                 # save all these images to disk.
-                d = os.path.join(args.scratch, str(cls), f"{name}_cam.jpg")
-                d_full = os.path.join(args.scratch, str(cls), f"{name}_full.jpg")
-                d_merge = os.path.join(args.scratch, str(cls), f"{name}_merge.jpg")
+                d = os.path.join(args.scratch, str(cls), f"{pretty_name}_cam.jpg")
+                d_full = os.path.join(args.scratch, str(cls), f"{pretty_name}_full.jpg")
+                d_merge = os.path.join(args.scratch, str(cls), f"{pretty_name}_merge.jpg")
 
                 cv2.imwrite(d, overlayed_cam)
                 cv2.imwrite(d_merge, merge)
