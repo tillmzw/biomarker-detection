@@ -60,6 +60,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.train:
+        print(f"ATTENTION: Using the training dataset may produce rotated or otherwise transformed and hence unaligned CAMs.")
+
     # initialize model
     net = getattr(model, args.model)()
     net.load_state_dict(torch.load(args.state, map_location="cpu"))
