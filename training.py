@@ -38,8 +38,9 @@ class Trainer():
     def get_validation_loss_function(self, weights=None):
         return nn.BCELoss(weight=weights)
 
-    def get_lr_scheduler(self, optimizer):
-        return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=6)
+    #def get_lr_scheduler(self, optimizer):
+    #    # unused
+    #    return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=6)
 
     def get_lr(self, optimizer):
         # borrowed from torch.optim.lr_scheduler
@@ -84,7 +85,7 @@ class Trainer():
         loss_func = self.get_loss_function(weights=weights)
         valid_loss_func = self.get_validation_loss_function(weights=weights)
         optimizer = self.get_optimizer(model)
-        lr_sched = self.get_lr_scheduler(optimizer)
+        #lr_sched = self.get_lr_scheduler(optimizer)
 
         self.get_lr(optimizer)
 
@@ -145,7 +146,7 @@ class Trainer():
                                                                                                              validation_dataloader,
                                                                                                              loss_func=self.get_validation_loss_function(weights))
                     # adapt the learning rate
-                    lr_sched.step(validation_loss)
+                    #lr_sched.step(validation_loss)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
