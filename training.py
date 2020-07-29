@@ -145,7 +145,7 @@ class Trainer():
                                                                                                              validation_dataloader,
                                                                                                              loss_func=self.get_validation_loss_function(weights))
                     # adapt the learning rate
-                    lr_sched.step(avg_precision)
+                    lr_sched.step(validation_loss)
                 except Exception as e:
                     logger.error("While validating during training, an error occured:")
                     logger.exception(e)
