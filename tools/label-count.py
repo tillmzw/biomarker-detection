@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("-P", "--presence-threshold", type=int, default=10, help="Require this many pixels of a class in a sample to consider it positive")
     parser.add_argument("-n", "--patch-number", type=int, default=100, help="Patch number per image")
     parser.add_argument("-c", "--cpus", type=int, default=multiprocessing.cpu_count(), metavar=multiprocessing.cpu_count(), help="Max. number of CPUs used for processing")
-    parser.add_argument("--plots", default=False, action="store_true", help="Generate a matplotlib plot for the distributions")
+    parser.add_argument("--plots", nargs="?", const=False, help="Generate a matplotlib plot for the distributions, optionally saving it in a file.")
 
     args = parser.parse_args()
 
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         d_title = f"{d_type} Counts"
         print_counts(d_counts, n_images=len(datasets[i]), title=d_title)
 
-    if args.plots:
+    if args.plots is not None:
         fig, (ax_prop_pos, ax_prop_total) = plt.subplots(2, 1, sharex='col', figsize=(7, 8))
         w = 0.2
         x = np.arange(5)
@@ -149,4 +149,9 @@ if __name__ == "__main__":
             ax.set_xticks(x)
             ax.set_xticklabels(datasets[0].CLASSES, rotation=45)
             ax.legend()
-        plt.show()
+        if args.plots is not False:
+            # args.plots is a file
+            plt.savefig(args.plots)
+        else:
+            # no file. display
+            plt.show()
