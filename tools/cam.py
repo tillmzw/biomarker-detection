@@ -3,6 +3,7 @@
 import sys
 import os
 import argparse
+import math
 
 import torch
 from torch import nn
@@ -49,7 +50,7 @@ class CAMHook:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--model")
+    parser.add_argument("-m", "--model", default="ResNet50")
     parser.add_argument("-s", "--state")
     parser.add_argument("-S", "--scratch")
 
@@ -58,9 +59,12 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--limit", default=None, type=int, help="Limit total number of images processed")
     parser.add_argument("-L", "--class-limit", default=None, type=int, help="Process this many images per class")
 
+    parser.add_argument("-a", "--annotations", choices=("top", "file", "none"), default="top", help="Declare where image annotations will be placed")
+    parser.add_argument("-c", "--context", type=int, default=-1, help="Retain this many pixels around sample as contextual information in output")
+
     args = parser.parse_args()
 
-    if args.train:
+    if args.use_training_dataset:
         print(f"ATTENTION: Using the training dataset may produce rotated or otherwise transformed and hence unaligned CAMs.")
 
     # initialize model
@@ -144,22 +148,60 @@ if __name__ == "__main__":
                 heatmap_full[row_start:row_end, col_start:col_end, :] = heatmap
                 # overlay heatmap over original image (with alpha values)
                 merge = cv2.addWeighted(full_image, 1, heatmap_full, 0.6, 0)
+
+                # manage contextual pixels around sample
+                if args.context > -1:
+                    # round up if necessary so we have even numbers
+                    context = math.ceil(args.context / 2) * 2
+                    c = context // 2
+                    # dont crop outside of image bounds
+                    rb_lower = 0
+                    rb_upper = merge.shape[0]
+                    cb_lower = 0
+                    cb_upper = merge.shape[1]
+                    merge = merge[
+                            max(row_start - c, rb_lower): min(row_end + c, rb_upper),
+                            max(col_start - c, cb_lower): min(col_end + c, cb_upper),
+                            :]
+                    crop_image = full_image[
+                            max(row_start - c, rb_lower): min(row_end + c, rb_upper),
+                            max(col_start - c, cb_lower): min(col_end + c, cb_upper),
+                            :]
+                    if args.annotations != "file":
+                        print("Overwriting annotation style to \"file\" due to space constraints")
+                    args.annotations = "file"
+                else:
+                    crop_image = full_image
+
                 # add some textual information to the output image
-                cv2.putText(merge, f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}", (10, 100), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=2, color=(128, 255, 128), thickness=2)
+                title = f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}"
                 descs = []
                 for i in range(5):
                     # mark a class as *a*bsent or *p*resent
                     mod = {0: "a", 1: "p"}[masks[0][i].round().item()]
                     descs.append(f"{BinaryPatchIDRIDDataset.CLASSES[i]} [{mod}]: {sig[0][i]:.2f}")
-                cv2.putText(merge, "; ".join(descs), (10, 200), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1.5, color=(128, 255, 128), thickness=1)
+
+                if args.annotations == "top":
+                    cv2.putText(merge, title, (10, 100), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=2, color=(128, 255, 128), thickness=2)
+                    cv2.putText(merge, "; ".join(descs), (10, 200), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1.5, color=(128, 255, 128), thickness=1)
+                elif args.annotations == "file":
+                    with open(os.path.join(args.scratch, str(cls), f"{pretty_name}_annot.txt"), "w") as af:
+                        af.write(title)
+                        for d in descs:
+                            af.write("\n\t" + d)
 
                 # save all these images to disk.
                 d = os.path.join(args.scratch, str(cls), f"{pretty_name}_cam.jpg")
                 d_full = os.path.join(args.scratch, str(cls), f"{pretty_name}_full.jpg")
                 d_merge = os.path.join(args.scratch, str(cls), f"{pretty_name}_merge.jpg")
+                d_crop = os.path.join(args.scratch, str(cls), f"{pretty_name}_context.jpg")
 
                 cv2.imwrite(d, overlayed_cam)
                 cv2.imwrite(d_merge, merge)
+
+                if args.context > -1:
+                    cv2.imwrite(d_crop, crop_image)
+
                 # for the original image a symlink should be sufficient
                 if not os.path.exists(d_full):
                     os.symlink(orig_image_path, d_full)
