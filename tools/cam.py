@@ -41,9 +41,7 @@ class CAMHook:
             #cam_img = cam / np.max(cam)
             # calculate the sigmoid - since this is not a tensor but a ndarray, we can't use torch.sigmoid()
             sig_cam = 1 / (1 + np.exp(-cam))
-            # TODO: clip negative values?
-            cam_img = np.uint8(255 * sig_cam)
-            cam_res = cv2.resize(cam_img, resize)
+            cam_res = cv2.resize(sig_cam, resize)
             output.append(cam_res)
         return output
 
@@ -152,7 +150,12 @@ if __name__ == "__main__":
                 if args.discrepancies and is_massive_discrepancy:
                     print(f"Massive prediction discrepancy detected in {pretty_name}: {discrepancy:.3f}")
 
-                heatmap = cv2.applyColorMap(np.rint(cam).astype(np.uint8), cv2.COLORMAP_JET)
+                # data rescaling thanks to https://stackoverflow.com/a/56276534
+                maxOld, minOld = cam.max(), cam.min()
+                maxNew, minNew = cam.max() * 255, cam.min() * 255
+                cam_rescaled = (maxNew - minNew) / (maxOld - minOld) * (cam - maxOld) + maxNew
+                cam_rescaled = np.rint(cam_rescaled).astype(np.uint8)
+                heatmap = cv2.applyColorMap(cam_rescaled, cv2.COLORMAP_JET)
 
                 overlayed_cam = heatmap * 0.3 + rec_image * 0.9  # adapt pixel intensities to simulate overlay when merging
 
