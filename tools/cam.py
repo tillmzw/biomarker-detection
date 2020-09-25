@@ -57,6 +57,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--limit", default=None, type=int, help="Limit total number of images processed")
     parser.add_argument("-L", "--class-limit", default=None, type=int, help="Process this many images per class")
 
+    parser.add_argument("-d", "--discrepancies", action="store_true", default=False, help="Always keep samples where distance between prediction and truth is very large")
     parser.add_argument("-a", "--annotations", choices=("top", "file", "none"), default="top", help="Declare where image annotations will be placed")
     parser.add_argument("-c", "--context", type=int, default=-1, help="Retain this many pixels around sample as contextual information in output")
 
@@ -128,13 +129,26 @@ if __name__ == "__main__":
 
             for cls, cam in enumerate(cams):
                 # should this class be positive?
-                true_class = masks[0][cls] == 1
-                if not true_class:
-                    #print(f"{name}: Skipping CAM for class {cls} - not a real positive")
+                truth = masks[0][cls]
+                true_class = truth == 1
+                discrepancy = abs(truth - sig.flatten()[cls])
+                is_massive_discrepancy = discrepancy > 0.95
+
+                if is_massive_discrepancy and args.discrepancies:
+                    # continue working here since this is a discrepancy and we want to plot them
+                    pass
+                elif true_class:
+                    # continue working here since this a solid positive ground truth
+                    pass
+                else:
+                    # either we don't care about discrepancies or this is a negative ground truth, so go to next class
                     continue
 
                 class_name = BinaryPatchIDRIDDataset.CLASSES[cls]
                 pretty_name = f"{names[0]}_{i:04d}_{class_name.lower().replace(' ', '-')}"
+
+                if args.discrepancies and is_massive_discrepancy:
+                    print(f"Massive prediction discrepancy detected in {pretty_name}: {discrepancy:.3f}")
 
                 # data rescaling thanks to https://stackoverflow.com/a/56276534
                 maxOld, minOld = cam.max(), cam.min()
@@ -177,7 +191,11 @@ if __name__ == "__main__":
                     crop_image = full_image
 
                 # add some textual information to the output image
-                title = f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]}"
+                if args.discrepancies and is_massive_discrepancy:
+                    addendum = f"[W! Discrepancy detected: {discrepancy:.3f}]"
+                else:
+                    addendum = ""
+                title = f"Detector: {BinaryPatchIDRIDDataset.CLASSES[cls]} {addendum}"
                 descs = []
                 for i in range(5):
                     # mark a class as *a*bsent or *p*resent
